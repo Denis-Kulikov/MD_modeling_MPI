@@ -16,7 +16,7 @@
 #include "../include/n_body.hpp"
 #include "../include/pipeline.hpp"
 
-#define NUMBER_BODY 100
+#define NUMBER_BODY 8 * 100
 
 using namespace std;
 
@@ -31,37 +31,49 @@ GLuint ShaderCube;
 const int width = 1280;
 const int height = 768;
 
-float width_space   = 2.0f;
-float height_space  = 2.0f;
-float length_space  = 2.0f;
+double width_space   = 2.0f;
+double height_space  = 2.0f;
+double length_space  = 2.0f;
 
 int n = NUMBER_BODY;
-const float size = 0.15f;
+const double size = 0.05f;
 
 Pipeline pipeline;
 struct distance_by_index *distances = (distance_by_index*)malloc(sizeof(*distances) * n);
 Vector3f *p = (Vector3f*)malloc(sizeof(*p) * n);
 Vector3f *f = (Vector3f*)malloc(sizeof(*f) * n);
 Vector3f *v = (Vector3f*)malloc(sizeof(*v) * n);
-float *m = (float*)malloc(sizeof(*m) * n);
+double *m = (double*)malloc(sizeof(*m) * n);
 
 void DrawCube()
 {
     pipeline.object.SetWorldPos(0, 0, 0);
     pipeline.object.SetRotate(0, 0, 0);
     pipeline.object.SetScale((width_space + size) * 2.0f, (height_space + size) * 2.0f, (length_space + size) * 2.0f);
-    glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, (const GLfloat*)pipeline.GetTrans());
 
+    GLfloat floatMatrix[16];
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) 
+            floatMatrix[i * 4 + j] = static_cast<GLfloat>(pipeline.GetTrans()->m[i][j]);
+    }
+
+    glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, floatMatrix);
     glutWireCube(1.0f);
 }
 
 void DrawSphere(int i)
 {
     pipeline.object.SetWorldPos(p[i].x, p[i].y, p[i].z);
-    glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, (const GLfloat*)pipeline.GetTrans());
-    glUniform1f(gMassLocation, m[i]);
 
-    glutSolidSphere(1.0f, 30, 30);
+    GLfloat floatMatrix[16];
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) 
+            floatMatrix[i * 4 + j] = static_cast<GLfloat>(pipeline.GetTrans()->m[i][j]);
+    }
+
+    glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, floatMatrix);
+    glUniform1f(gMassLocation, static_cast<float>(m[i]));
+    glutSolidSphere(1.0f, 8, 8);
 }
 
 static void RenderSceneCB()
@@ -71,7 +83,7 @@ static void RenderSceneCB()
     glUseProgram(ShaderCube);
     DrawCube();
 
-    move_body(size);
+    // move_body(size);
 
     qsort(distances, n, sizeof(*distances), CompareParticleDistances);
     glUseProgram(ShaderSphere); 

@@ -11,7 +11,7 @@ public:
         Params.Up          = Vector3f(0.0f, 1.0f, 0.0f);
     }
 
-    void SetPerspectiveProj(float FOV, float Width, float Height, float zNear, float zFar)
+    void SetPerspectiveProj(double FOV, double Width, double Height, double zNear, double zFar)
     {
         PersProj.FOV    = FOV;
         PersProj.Width  = Width;
@@ -34,10 +34,10 @@ public:
     } Params;
 
     struct {
-        float FOV;
-        float Width;
-        float Height;
-        float zNear;
-        float zFar;
+        double FOV;
+        double Width;
+        double Height;
+        double zNear;
+        double zFar;
     } PersProj;
 };

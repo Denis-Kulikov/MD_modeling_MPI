@@ -1,25 +1,26 @@
+#include <ctime>
 #include "../include/math_3d.h"
 #include "../include/distance.hpp"
 #include "../include/pipeline.hpp"
 
-// const float G = 6.67e-11;
-const float G = 10;
+// const double G = 6.67e-11;
+const double G = 10;
 
 extern int n;
 extern Vector3f *p;
 extern Vector3f *f;
 extern Vector3f *v;
-extern float *m;
+extern double *m;
 extern struct distance_by_index *distances;
 extern Pipeline pipeline;
 
-extern float width_space;
-extern float height_space;
-extern float length_space;
+extern double width_space;
+extern double height_space;
+extern double length_space;
 
-void move_particles(float dt)
+void move_particles(double dt)
 {
-    float boundary_offset = 0.001;
+    double boundary_offset = 0.001;
 
     for (int i = 0; i < n; i++) {
         Vector3f dv(
@@ -72,19 +73,19 @@ void move_particles(float dt)
     }
 }
 
-void calculate_forces(float size)
+void calculate_forces(double size)
 {
     for (int i = 0; i < n - 1; i++) {
         for (int j = i + 1; j < n; j++) {
             Vector3f dir = VectorSubtract(p[j], p[i]);
-            float dist = p[i].distance(p[j]);
-            float mag = (G * m[i] * m[j]) / powf(dist, 2);
+            double dist = p[i].distance(p[j]);
+            double mag = (G * m[i] * m[j]) / powf(dist, 2);
 
             if (dist < size * 2) {
                 Vector3f normal = VectorNormalize(VectorSubtract(p[i], p[j]));
 
-                float v1n = VectorDot(v[i], normal);
-                float v2n = VectorDot(v[j], normal);
+                double v1n = VectorDot(v[i], normal);
+                double v2n = VectorDot(v[j], normal);
 
                 v[i] = VectorSubtract(v[i], VectorScale(normal, 2.0f * v1n));
                 v[j] = VectorSubtract(v[j], VectorScale(normal, 2.0f * v2n));
@@ -98,27 +99,33 @@ void calculate_forces(float size)
 
 void init_partiecle ()
 {
+    srand(time(NULL));
+    
     for (int i = 0; i < n; i++) {
-        p[i].x = (rand() / (float)RAND_MAX - 0.5) * 2 * (width_space  - pipeline.object.Scale.x);
-        p[i].y = (rand() / (float)RAND_MAX - 0.5) * 2 * (height_space - pipeline.object.Scale.x);
-        p[i].z = (rand() / (float)RAND_MAX - 0.5) * 2 * (length_space - pipeline.object.Scale.x);
+        p[i].x = (i % 2 == 0 ? -1 : 1) * (i / 2 % 2 == 0 ? 1 : -1) * width_space / 2.0;
+        p[i].y = (i / 4 % 2 == 0 ? 1 : -1) * height_space / 2.0;
+        p[i].z = (i / 8 % 2 == 0 ? 1 : -1) * length_space / 2.0;
 
-        v[i].x = rand() / (float)RAND_MAX - G;
-        v[i].y = rand() / (float)RAND_MAX - G;
-        v[i].z = rand() / (float)RAND_MAX - G;
+        p[i].x += (rand() / (double)RAND_MAX - 0.5) * 2 / 2 * width_space;
+        p[i].y += (rand() / (double)RAND_MAX - 0.5) * 2 / 2 * height_space;
+        p[i].z += (rand() / (double)RAND_MAX - 0.5) * 2 / 2 * length_space;
 
-        m[i] = rand() / (float)RAND_MAX * 0.8 + 0.2;
+        v[i].x = rand() / (double)RAND_MAX - G;
+        v[i].y = rand() / (double)RAND_MAX - G;
+        v[i].z = rand() / (double)RAND_MAX - G;
+
+        m[i] = rand() / (double)RAND_MAX * 0.8 + 0.2;
         
         f[i].x = f[i].y = f[i].z = 0;
-        
+
         distances[i].index = i;
-        distances[i].dist = sqrtf(powf(p[i].x, 2) + powf(p[i].y, 2) + powf(p[i].z, 2));
+        distances[i].dist = p[i].distance(pipeline.camera.Params.WorldPos);
     }
 }
 
-void move_body(float size)
+void move_body(double size)
 {
-    float dt = 1e-4;
+    double dt = 1e-5;
     calculate_forces(size); 
     move_particles(dt);
 }

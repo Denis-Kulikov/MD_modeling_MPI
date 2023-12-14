@@ -3,7 +3,7 @@
 
 struct distance_by_index {
     int index;
-    float dist;
+    double dist;
 };
 
 int CompareParticleDistances(const void* a, const void* b);

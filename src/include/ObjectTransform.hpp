@@ -11,21 +11,21 @@ public:
         Rotate = Vector3f(0.0f, 0.0f, 0.0f);
     }
 
-    void SetScale(float ScaleX, float ScaleY, float ScaleZ)
+    void SetScale(double ScaleX, double ScaleY, double ScaleZ)
     {
         Scale.x = ScaleX;
         Scale.y = ScaleY;
         Scale.z = ScaleZ;
     }
 
-    void SetWorldPos(float x, float y, float z)
+    void SetWorldPos(double x, double y, double z)
     {
         WorldPos.x = x;
         WorldPos.y = y;
         WorldPos.z = z;
     }
 
-    void SetRotate(float RotateX, float RotateY, float RotateZ)
+    void SetRotate(double RotateX, double RotateY, double RotateZ)
     {
         Rotate.x = RotateX;
         Rotate.y = RotateY;

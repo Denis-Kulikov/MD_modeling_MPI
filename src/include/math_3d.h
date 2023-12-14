@@ -27,14 +27,14 @@
 
 struct Vector2f
 {
-    float x;
-    float y;
+    double x;
+    double y;
 
     Vector2f()
     {
     }
 
-    Vector2f(float _x, float _y)
+    Vector2f(double _x, double _y)
     {
         x = _x;
         y = _y;
@@ -43,15 +43,15 @@ struct Vector2f
 
 struct Vector3f
 {
-    float x;
-    float y;
-    float z;
+    double x;
+    double y;
+    double z;
 
     Vector3f()
     {
     }
 
-    Vector3f(float _x, float _y, float _z)
+    Vector3f(double _x, double _y, double _z)
     {
         x = _x;
         y = _y;
@@ -67,21 +67,21 @@ struct Vector3f
         printf("%.02f, %.02f, %.02f\n", x, y, z);
     }
     
-    float distance(const Vector3f &p) {
+    double distance(const Vector3f &p) {
         return sqrt(pow(p.x - x, 2) + pow(p.y - y, 2) + pow(p.z - z, 2));
     }
 };
 
-float VectorDot(Vector3f a, Vector3f b);
+double VectorDot(Vector3f a, Vector3f b);
 Vector3f VectorNormalize(Vector3f v);
 Vector3f VectorSubtract(Vector3f a, Vector3f b);
 Vector3f VectorAdd(Vector3f a, Vector3f b);
-Vector3f VectorScale(Vector3f v, float s);
+Vector3f VectorScale(Vector3f v, double s);
 
 class Matrix4f
 {
 public:
-    float m[4][4];
+    double m[4][4];
 
     Matrix4f()
     {        
@@ -112,11 +112,11 @@ public:
         return Ret;
     }
 
-    void InitScaleTransform(float ScaleX, float ScaleY, float ScaleZ);
-    void InitRotateTransform(float RotateX, float RotateY, float RotateZ);
-    void InitTranslationTransform(float x, float y, float z);
+    void InitScaleTransform(double ScaleX, double ScaleY, double ScaleZ);
+    void InitRotateTransform(double RotateX, double RotateY, double RotateZ);
+    void InitTranslationTransform(double x, double y, double z);
     void InitCameraTransform(const Vector3f& Target, const Vector3f& Up);
-    void InitPersProjTransform(float FOV, float Width, float Height, float zNear, float zFar);
+    void InitPersProjTransform(double FOV, double Width, double Height, double zNear, double zFar);
 };
 
 

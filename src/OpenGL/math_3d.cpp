@@ -2,16 +2,16 @@
 
 Vector3f Vector3f::Cross(const Vector3f& v) const
 {
-    const float _x = y * v.z - z * v.y;
-    const float _y = z * v.x - x * v.z;
-    const float _z = x * v.y - y * v.x;
+    const double _x = y * v.z - z * v.y;
+    const double _y = z * v.x - x * v.z;
+    const double _z = x * v.y - y * v.x;
 
     return Vector3f(_x, _y, _z);
 }
 
 Vector3f& Vector3f::Normalize()
 {
-    const float Length = sqrtf(x * x + y * y + z * z);
+    const double Length = sqrtf(x * x + y * y + z * z);
 
     x /= Length;
     y /= Length;
@@ -20,16 +20,16 @@ Vector3f& Vector3f::Normalize()
     return *this;
 }
 
-float VectorDot(Vector3f a, Vector3f b)
+double VectorDot(Vector3f a, Vector3f b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
 Vector3f VectorNormalize(Vector3f v)
 {
-    float len = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+    double len = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
     if (len > 0.0f) {
-        float invLen = 1.0f / len;
+        double invLen = 1.0f / len;
         v.x *= invLen;
         v.y *= invLen;
         v.z *= invLen;
@@ -55,7 +55,7 @@ Vector3f VectorAdd(Vector3f a, Vector3f b)
     return result;
 }
 
-Vector3f VectorScale(Vector3f v, float s)
+Vector3f VectorScale(Vector3f v, double s)
 {
     Vector3f result;
     result.x = v.x * s;
@@ -65,7 +65,7 @@ Vector3f VectorScale(Vector3f v, float s)
 }
 
 
-void Matrix4f::InitScaleTransform(float ScaleX, float ScaleY, float ScaleZ)
+void Matrix4f::InitScaleTransform(double ScaleX, double ScaleY, double ScaleZ)
 {
     m[0][0] = ScaleX; m[0][1] = 0.0f;   m[0][2] = 0.0f;   m[0][3] = 0.0f;
     m[1][0] = 0.0f;   m[1][1] = ScaleY; m[1][2] = 0.0f;   m[1][3] = 0.0f;
@@ -73,13 +73,13 @@ void Matrix4f::InitScaleTransform(float ScaleX, float ScaleY, float ScaleZ)
     m[3][0] = 0.0f;   m[3][1] = 0.0f;   m[3][2] = 0.0f;   m[3][3] = 1.0f;
 }
 
-void Matrix4f::InitRotateTransform(float RotateX, float RotateY, float RotateZ)
+void Matrix4f::InitRotateTransform(double RotateX, double RotateY, double RotateZ)
 {
     Matrix4f rx, ry, rz;
 
-    const float x = ToRadian(RotateX);
-    const float y = ToRadian(RotateY);
-    const float z = ToRadian(RotateZ);
+    const double x = ToRadian(RotateX);
+    const double y = ToRadian(RotateY);
+    const double z = ToRadian(RotateZ);
 
     rx.m[0][0] = 1.0f; rx.m[0][1] = 0.0f   ; rx.m[0][2] = 0.0f    ; rx.m[0][3] = 0.0f;
     rx.m[1][0] = 0.0f; rx.m[1][1] = cosf(x); rx.m[1][2] = -sinf(x); rx.m[1][3] = 0.0f;
@@ -99,7 +99,7 @@ void Matrix4f::InitRotateTransform(float RotateX, float RotateY, float RotateZ)
     *this = rz * ry * rx;
 }
 
-void Matrix4f::InitTranslationTransform(float x, float y, float z)
+void Matrix4f::InitTranslationTransform(double x, double y, double z)
 {
     m[0][0] = 1.0f; m[0][1] = 0.0f; m[0][2] = 0.0f; m[0][3] = x;
     m[1][0] = 0.0f; m[1][1] = 1.0f; m[1][2] = 0.0f; m[1][3] = y;
@@ -123,11 +123,11 @@ void Matrix4f::InitCameraTransform(const Vector3f& Target, const Vector3f& Up)
     m[3][0] = 0.0f;  m[3][1] = 0.0f;  m[3][2] = 0.0f;  m[3][3] = 1.0f;        
 }
 
-void Matrix4f::InitPersProjTransform(float FOV, float Width, float Height, float zNear, float zFar)
+void Matrix4f::InitPersProjTransform(double FOV, double Width, double Height, double zNear, double zFar)
 {
-    const float ar         = Width / Height;
-    const float zRange     = zNear - zFar;
-    const float tanHalfFOV = tanf(ToRadian(FOV / 2.0f));
+    const double ar         = Width / Height;
+    const double zRange     = zNear - zFar;
+    const double tanHalfFOV = tanf(ToRadian(FOV / 2.0f));
 
     m[0][0] = 1.0f/(tanHalfFOV * ar); m[0][1] = 0.0f;            m[0][2] = 0.0f;          m[0][3] = 0.0;
     m[1][0] = 0.0f;                   m[1][1] = 1.0f/tanHalfFOV; m[1][2] = 0.0f;          m[1][3] = 0.0;
