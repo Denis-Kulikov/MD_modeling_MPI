@@ -9,19 +9,20 @@
 #include <unistd.h>
 
 #include <GL/glew.h>
-#include <GL/freeglut.h>
+#include <GLFW/glfw3.h>
 
 #include "../include/math_3d.h"
 #include "../include/distance.hpp"
 #include "../include/n_body.hpp"
 #include "../include/pipeline.hpp"
 
-#define NUMBER_BODY 8 * 100
+#define NUMBER_BODY 8 * 8
 
 using namespace std;
 
+GLuint VAO;
 GLuint VBO;
-GLuint IBO;
+GLuint EBO;
 GLuint gWorldLocation;
 GLuint gScaleLocation;
 GLuint gMassLocation;
@@ -35,8 +36,12 @@ double width_space   = 2.0f;
 double height_space  = 2.0f;
 double length_space  = 2.0f;
 
+const double radius = 0.2f;
+const float PI = 3.14159265359f;
 int n = NUMBER_BODY;
-const double size = 0.05f;
+const int SPHERE_SEGMENTS = 30;
+int numVertices;
+int numIndices;
 
 Pipeline pipeline;
 struct distance_by_index *distances = (distance_by_index*)malloc(sizeof(*distances) * n);
@@ -45,11 +50,105 @@ Vector3f *f = (Vector3f*)malloc(sizeof(*f) * n);
 Vector3f *v = (Vector3f*)malloc(sizeof(*v) * n);
 double *m = (double*)malloc(sizeof(*m) * n);
 
+void CreateCube()
+{
+    std::vector<GLfloat> vertices = {
+        -1, -1, 1,
+        -1, 1, 1,   -1, 1, -1,  -1, 1, 1, 
+        1, 1, 1,    1, 1, -1,    1, 1, 1,
+        1, -1, 1,   1, -1, -1,   1, -1, 1,
+        -1, -1, 1,
+
+        -1, -1, -1,
+        -1, 1, -1,
+        1, 1, -1,
+        1, -1, -1,
+        -1, -1, -1
+    };
+
+    numVertices = static_cast<int>(vertices.size()) / 3;
+
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
+    glGenBuffers(1, &VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(GLfloat), vertices.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void createSphere()
+{
+    std::vector<GLfloat> vertices;
+    std::vector<GLuint> indices;
+
+    for (int lat = 0; lat <= SPHERE_SEGMENTS; ++lat) {
+        double theta = lat * M_PI / SPHERE_SEGMENTS;
+        double sinTheta = sin(theta);
+        double cosTheta = cos(theta);
+
+        for (int lon = 0; lon <= SPHERE_SEGMENTS; ++lon) {
+            double phi = lon * 2 * M_PI / SPHERE_SEGMENTS;
+            double sinPhi = sin(phi);
+            double cosPhi = cos(phi);
+
+            float x = static_cast<float>(cosPhi * sinTheta);
+            float y = static_cast<float>(cosTheta);
+            float z = static_cast<float>(sinPhi * sinTheta);
+
+            vertices.push_back(x);
+            vertices.push_back(y);
+            vertices.push_back(z);
+        }
+    }
+
+    numVertices = static_cast<int>(vertices.size()) / 3;
+
+    for (int lat = 0; lat < SPHERE_SEGMENTS; ++lat) {
+        for (int lon = 0; lon < SPHERE_SEGMENTS; ++lon) {
+            int current = lat * (SPHERE_SEGMENTS + 1) + lon;
+            int next = current + SPHERE_SEGMENTS + 1;
+
+            indices.push_back(current);
+            indices.push_back(next);
+            indices.push_back(current + 1);
+
+            indices.push_back(current + 1);
+            indices.push_back(next);
+            indices.push_back(next + 1);
+        }
+    }
+
+    numIndices = static_cast<int>(indices.size());
+
+    glGenVertexArrays(1, &VAO);
+    glBindVertexArray(VAO);
+
+    glGenBuffers(1, &VBO);
+    glBindBuffer(GL_ARRAY_BUFFER, VBO);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(GLfloat), vertices.data(), GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+    glEnableVertexAttribArray(0);
+
+    glGenBuffers(1, &EBO);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(GLuint), indices.data(), GL_STATIC_DRAW);
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
 void DrawCube()
 {
     pipeline.object.SetWorldPos(0, 0, 0);
     pipeline.object.SetRotate(0, 0, 0);
-    pipeline.object.SetScale((width_space + size) * 2.0f, (height_space + size) * 2.0f, (length_space + size) * 2.0f);
+    pipeline.object.SetScale(width_space + radius, height_space + radius, length_space + radius);
 
     GLfloat floatMatrix[16];
     for (int i = 0; i < 4; i++) {
@@ -58,7 +157,9 @@ void DrawCube()
     }
 
     glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, floatMatrix);
-    glutWireCube(1.0f);
+    glBindVertexArray(VAO);
+    glDrawArrays(GL_LINE_STRIP, 0, numVertices);
+    glBindVertexArray(0);
 }
 
 void DrawSphere(int i)
@@ -73,34 +174,29 @@ void DrawSphere(int i)
 
     glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, floatMatrix);
     glUniform1f(gMassLocation, static_cast<float>(m[i]));
-    glutSolidSphere(1.0f, 8, 8);
+
+    glBindVertexArray(VAO);
+    glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
 }
 
 static void RenderSceneCB()
 {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
     glUseProgram(ShaderCube);
+    CreateCube();
     DrawCube();
 
-    // move_body(size);
+    move_body(radius);
 
     qsort(distances, n, sizeof(*distances), CompareParticleDistances);
     glUseProgram(ShaderSphere); 
-    pipeline.object.SetScale(size, size, size);
+    createSphere();
+    pipeline.object.SetScale(radius, radius, radius);
     pipeline.object.SetRotate(0, 0, 0);
     for (int i = 0; i < n; i++) {
         int particleIndex = distances[i].index;
         DrawSphere(particleIndex);
     }
-
-    glutSwapBuffers();
-}
-
-static void InitializeGlutCallbacks()
-{
-    glutDisplayFunc(RenderSceneCB);
-    glutIdleFunc(RenderSceneCB);
 }
 
 GLuint LoadShader(const char *shader_path, GLuint type)
@@ -198,80 +294,97 @@ void CompileShaders()
     assert(gScaleLocation != 0xFFFFFFFF);
 }
 
-static void KeyboardCB(unsigned char Key, int x, int y)
+static void KeyboardCB(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     double speed_movement = 0.125;
     double speed_rotation = 0.075;
-    switch (Key) {
-    case 'f':
-        glutLeaveMainLoop();
-        break;
-    case 'w':
-        pipeline.camera.Params.WorldPos.z += speed_movement;
-        break;
-    case 's':
-        pipeline.camera.Params.WorldPos.z -= speed_movement;
-        break;
-    case 'd':
-        pipeline.camera.Params.WorldPos.x += speed_movement;
-        break;
-    case 'a':
-        pipeline.camera.Params.WorldPos.x -= speed_movement;
-        break;
-    case ' ':
-        pipeline.camera.Params.WorldPos.y += speed_movement;
-        break;
-    case 'c':
-        pipeline.camera.Params.WorldPos.y -= speed_movement;
-        break;
-    case 'e':
-        pipeline.camera.Params.Target.x += speed_rotation;
-        break;
-    case 'q':
-        pipeline.camera.Params.Target.x -= speed_rotation;
-        break;
+    switch (key) {
+        case GLFW_KEY_F:
+            glfwSetWindowShouldClose(window, GLFW_TRUE);
+            break;
+        case GLFW_KEY_W:
+            pipeline.camera.Params.WorldPos.z += speed_movement;
+            break;
+        case GLFW_KEY_S:
+            pipeline.camera.Params.WorldPos.z -= speed_movement;
+            break;
+        case GLFW_KEY_D:
+            pipeline.camera.Params.WorldPos.x += speed_movement;
+            break;
+        case GLFW_KEY_A:
+            pipeline.camera.Params.WorldPos.x -= speed_movement;
+            break;
+        case GLFW_KEY_SPACE:
+            pipeline.camera.Params.WorldPos.y += speed_movement;
+            break;
+        case GLFW_KEY_C:
+            pipeline.camera.Params.WorldPos.y -= speed_movement;
+            break;
+        case GLFW_KEY_E:
+            pipeline.camera.Params.Target.x += speed_rotation;
+            break;
+        case GLFW_KEY_Q:
+            pipeline.camera.Params.Target.x -= speed_rotation;
+            break;
     }
+}
+
+void InitializeGLFW(GLFWwindow* &window)
+{
+    if (!glfwInit()) {
+        std::cerr << "Failed to initialize GLFW" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    window = glfwCreateWindow(width, height, "NBody", NULL, NULL);
+    if (!window) {
+        std::cerr << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        exit(EXIT_FAILURE);
+    }
+
+    glfwMakeContextCurrent(window);
+    glfwSetKeyCallback(window, KeyboardCB);
+
+    GLenum err = glewInit();
+    if (err != GLEW_OK) {
+        std::cerr << "Error: " << glewGetErrorString(err) << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    glEnable(GL_DEPTH_TEST);
+
+    glClearColor(0.1f, 0.1f, 0.1f, 0.0f);
 }
 
 int main(int argc, char** argv)
 {
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glEnable(GL_DEPTH_TEST);
-
-    glutInitWindowSize(width, height);
-    glScalef(height / width, 1, 1);
-    glutInitWindowPosition(10, 10);
-    glutCreateWindow("NBody");
-
-    InitializeGlutCallbacks();
-    glLoadIdentity();
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, width, 0, height, -1, 1);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    GLenum res = glewInit();
-    if (res != GLEW_OK) {
-      fprintf(stderr, "Error: '%s'\n", glewGetErrorString(res));
-      return 1;
-    }
+    GLFWwindow* window = nullptr;
+    InitializeGLFW(window);
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
+    CompileShaders();
 
     Vector3f CameraPos(0.0f, 0.1f, -7.0f);
     Vector3f CameraTarget(0.0f, 0.0f, 1.0f);
     Vector3f CameraUp(0.0f, 1.0f, 0.0f);
     pipeline.camera.SetCamera(CameraPos, CameraTarget, CameraUp);
     pipeline.camera.SetPerspectiveProj(60.0f, width, height, 0.5f, 100.0f);
-    pipeline.object.SetScale(size, size, size);
-
-    glClearColor(0.1f, 0.1f, 0.1f, 0.0f);
-    CompileShaders();
+    pipeline.object.SetScale(radius, radius, radius);
     init_partiecle();
 
-    glutKeyboardFunc(KeyboardCB);
-    glutMainLoop();
+    while (!glfwWindowShouldClose(window)) {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        RenderSceneCB();
+
+        glfwSwapBuffers(window);
+        glfwPollEvents();
+    }
+
+    glfwTerminate();
 
     free(m);
     free(v);

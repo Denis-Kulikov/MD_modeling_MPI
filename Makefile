@@ -4,7 +4,7 @@ LIB_NAME = Lib
 CC = g++
 CFLAGS = -c -Wall -Wextra -Werror
 CPPFLAGS = -I src -MP -MMD
-LDLIBS = -lglut -lglfw -lGL -lGLEW -lm
+LDLIBS = -lglfw -lGL -lGLEW -lm
 
 
 BIN_DIR = bin
@@ -28,7 +28,7 @@ DEPS = $(APP_OBJECTS:.o=.d) $(LIB_OBJECTS:.o=.d)
 all: $(APP_PATH)
 
 $(APP_PATH): src/OpenGL/main.cpp src/OpenGL/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/OpenGL/n_body.cpp
-	$(CC) -o $@ -Wall $^ $(LDLIBS) -lm
+	$(CC) -o $@ -Wall $^ $(LDLIBS)
 
 .PHONY: clean
 clean:

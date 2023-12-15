@@ -1,7 +1,4 @@
-#include <ctime>
-#include "../include/math_3d.h"
-#include "../include/distance.hpp"
-#include "../include/pipeline.hpp"
+#include "../include/n_body.hpp"
 
 // const double G = 6.67e-11;
 const double G = 10;
@@ -17,6 +14,8 @@ extern Pipeline pipeline;
 extern double width_space;
 extern double height_space;
 extern double length_space;
+
+const double epsilon = 5.0;
 
 void move_particles(double dt)
 {
@@ -73,15 +72,23 @@ void move_particles(double dt)
     }
 }
 
-void calculate_forces(double size)
+double lj_potential(double r, double sigma) {
+    if (r == 0.0) {
+        return 0.0;
+    }
+    double term1 = 4.0 * epsilon * (pow(sigma / r, 12));
+    double term2 = 4.0 * epsilon * (pow(sigma / r, 6));
+    return term1 - term2;
+}
+
+void calculate_forces(double radius)
 {
     for (int i = 0; i < n - 1; i++) {
         for (int j = i + 1; j < n; j++) {
             Vector3f dir = VectorSubtract(p[j], p[i]);
             double dist = p[i].distance(p[j]);
-            double mag = (G * m[i] * m[j]) / powf(dist, 2);
 
-            if (dist < size * 2) {
+            if (dist < radius * 2) {
                 Vector3f normal = VectorNormalize(VectorSubtract(p[i], p[j]));
 
                 double v1n = VectorDot(v[i], normal);
@@ -91,8 +98,12 @@ void calculate_forces(double size)
                 v[j] = VectorSubtract(v[j], VectorScale(normal, 2.0f * v2n));
             }
 
-            f[i] = VectorAdd(f[i], VectorScale(VectorNormalize(dir), mag));
-            f[j] = VectorSubtract(f[j], VectorScale(VectorNormalize(dir), mag));
+            double lj_energy = lj_potential(dist, radius);
+
+            Vector3f force = VectorScale(VectorNormalize(dir), lj_energy);
+
+            f[i] = VectorAdd(f[i], force);
+            f[j] = VectorSubtract(f[j], force);
         }
     }
 }
@@ -102,17 +113,16 @@ void init_partiecle ()
     srand(time(NULL));
     
     for (int i = 0; i < n; i++) {
-        p[i].x = (i % 2 == 0 ? -1 : 1) * (i / 2 % 2 == 0 ? 1 : -1) * width_space / 2.0;
-        p[i].y = (i / 4 % 2 == 0 ? 1 : -1) * height_space / 2.0;
-        p[i].z = (i / 8 % 2 == 0 ? 1 : -1) * length_space / 2.0;
+        p[i].x = (i % 2 == 0 ? -1 : 1) * (i / 2 % 2 == 0 ? 1 : -1) * width_space / 2.0 +
+                 (rand() / (double)RAND_MAX - 0.5)  * width_space * 0.9999;
+        p[i].y = (i / 4 % 2 == 0 ? 1 : -1) * height_space / 2.0 +
+                 (rand() / (double)RAND_MAX - 0.5) * height_space * 0.9999;
+        p[i].z = (i / 8 % 2 == 0 ? 1 : -1) * length_space / 2.0 + 
+                 (rand() / (double)RAND_MAX - 0.5) * length_space * 0.9999;
 
-        p[i].x += (rand() / (double)RAND_MAX - 0.5) * 2 / 2 * width_space;
-        p[i].y += (rand() / (double)RAND_MAX - 0.5) * 2 / 2 * height_space;
-        p[i].z += (rand() / (double)RAND_MAX - 0.5) * 2 / 2 * length_space;
-
-        v[i].x = rand() / (double)RAND_MAX - G;
-        v[i].y = rand() / (double)RAND_MAX - G;
-        v[i].z = rand() / (double)RAND_MAX - G;
+        v[i].x = 0.05 * (i % 2 == 0 ? -1 : 1) * (i / 2 % 2 == 0 ? 1 : -1) * rand() / (double)RAND_MAX;
+        v[i].y = 0.05 * (i / 4 % 2 == 0 ? 1 : -1) * rand() / (double)RAND_MAX;
+        v[i].z = 0.05 * (i / 8 % 2 == 0 ? 1 : -1) * rand() / (double)RAND_MAX;
 
         m[i] = rand() / (double)RAND_MAX * 0.8 + 0.2;
         
@@ -123,9 +133,9 @@ void init_partiecle ()
     }
 }
 
-void move_body(double size)
+void move_body(double radius)
 {
-    double dt = 1e-5;
-    calculate_forces(size); 
+    double dt = 1e-2;
+    calculate_forces(radius); 
     move_particles(dt);
 }
