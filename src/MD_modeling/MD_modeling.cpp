@@ -1,3 +1,4 @@
+#include "../include/math_3d.h"
 #include "../include/MD_modeling.hpp"
 
 extern struct distance_by_index distances;
@@ -10,7 +11,7 @@ Vector3f region;
 Vector3f vSum;
 Prop kinEnergy, pressure, totEnergy;
 FILE *result;
-
+FILE *log;
 double deltaT, alpha, density, rCut, temperature, size;
 double timeNow, uSum, velMag, virSum, vvSum;
 int moreCycles, stepAvg, stepCount, stepEquil, stepLimit, stepWrite;
@@ -28,20 +29,11 @@ void WriteParams()
     DO_MOL(nMol) fwrite(&Mol.p[i], sizeof(Vector3f), 1, result);
 }
 
-void PrintSummary (const char *FileName)
+void PrintSummary ()
 {
-    FILE *fp = fopen(FileName, "w");
-    TRY((fp == nullptr), "Fopen error.");
-
-    fprintf (fp, "%5d %8.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
+    fprintf (log, "%5d %8.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
              stepCount, timeNow, vSum.VCSum() / nMol,
              PropEst(totEnergy),PropEst (kinEnergy), PropEst (pressure));
-
-    // printf ("%5d %8.4f %7.4f \n%7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
-    //         stepCount, timeNow, vSum.VCSum() / nMol,
-    //         PropEst(totEnergy),PropEst (kinEnergy), PropEst (pressure));
-
-    fclose(fp);
 }
 
 void VRand(Vector3f &p)
@@ -180,7 +172,7 @@ void SingleStep (int first, int last)
             EvalProps ();
             AccumProps (1);
             AccumProps (2);
-            PrintSummary ("data/log.txt");
+            PrintSummary ();
             AccumProps (0);
             DO_MOL(nMol) {
                 if ( Mol.v[i].x > 1000 || Mol.v[i].y > 1000 || Mol.v[i].z > 1000)
@@ -195,6 +187,7 @@ void SingleStep (int first, int last)
 
     if (stepCount == stepLimit) {
         fclose(result);
+        fclose(log);
         moreCycles = 0;
     }
 }
@@ -273,12 +266,13 @@ bool AllocArrays ()
 
 void SetupJob ()
 {
+    result = fopen("data/result.bin", "wb");
+    log = fopen("data/log.txt", "w");
     srand(time(NULL));
     InitCoords ();
     InitVels ();
     InitMass ();
     AccumProps (0);
-    result = fopen("data/result.bin", "wb");
     WriteParams();
 }
 

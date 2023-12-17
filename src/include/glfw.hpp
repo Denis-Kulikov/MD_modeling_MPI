@@ -18,6 +18,9 @@
 
 using namespace std;
 
+#define PI = 3.14159265359f;
+
+
 // void CreateCube();
 // void createSphere();
 // void DrawCube();

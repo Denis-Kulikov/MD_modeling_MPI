@@ -34,8 +34,6 @@ int width = 1280;
 int height = 768;
 
 double radius = 0.075f;
-float PI = 3.14159265359f;
-
 int SPHERE_SEGMENTS = 16;
 int numVertices;
 int numIndices;
@@ -179,7 +177,6 @@ void DrawSphere(int i)
 void RenderSceneCB()
 {
     sort_distances(distances, nMol);
-    // qsort(distances, nMol, sizeof(*distances), CompareParticleDistances);
     glUseProgram(ShaderSphere); 
     createSphere();
     pipeline.object.SetScale(radius, radius, radius);

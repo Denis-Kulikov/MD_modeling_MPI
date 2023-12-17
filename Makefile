@@ -1,10 +1,10 @@
 APP_NAME = MD
-LIB_NAME = Lib
+DEBUG_NAME = ${APP_NAME}_debug
+MPI_NAME = ${APP_NAME}_MPI
 
 CC = g++
 MPICXX = mpicxx
 CFLAGS = -c -Wall -Wextra -Werror
-CPPFLAGS = -I src -MP -MMD
 LDLIBS = -lglfw -lGL -lGLEW -lm
 
 
@@ -13,11 +13,13 @@ OBJ_DIR = obj
 SRC_DIR = src
 
 APP_PATH = $(BIN_DIR)/$(APP_NAME)
-DEBUG_PATH = $(BIN_DIR)/$(APP_NAME)_debug
-MPI_PATH = $(BIN_DIR)/$(APP_NAME)_mpi
+DEBUG_PATH = $(BIN_DIR)/$(DEBUG_NAME)
+MPI_PATH = $(BIN_DIR)/$(MPI_NAME)
 
 SRC_EXT = cpp
 APP_RUN = $(BIN_DIR)/./$(APP_NAME)
+DEBUG_RUN = $(BIN_DIR)/./$(DEBUG_NAME)
+MPI_RUN = $(BIN_DIR)/./$(MPI_NAME)
 
 APP_SOURCES = $(shell find $(SRC_DIR)/$(APP_NAME) -name '*.$(SRC_EXT)')
 APP_OBJECTS = $(APP_SOURCES:$(SRC_DIR)/%.$(SRC_EXT)=$(OBJ_DIR)/%.o)
@@ -30,9 +32,21 @@ DEPS = $(APP_OBJECTS:.o=.d) $(LIB_OBJECTS:.o=.d)
 .PHONY: all
 all: $(APP_PATH)
 
-$(APP_PATH): src/MPI/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
-	$(MPICXX) -o $@ -Wall $^ $(LDLIBS)
+$(APP_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
+	$(CC) -o $@ -Wall $^ $(LDLIBS)
 
+.PHONY: debug
+	debug: $(DEBUG_PATH)
+
+$(DEBUG_PATH): src/glfw/main.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
+	$(CC) -g -o $@ -Wall $^ $(LDLIBS)
+	
+.PHONY: mpi
+debug: $(MPI_PATH)
+
+$(MPI_PATH): src/MPI/main.cpp src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
+	$(MPICXX) -g -o $@ -Wall $^ -lm
+	
 .PHONY: clean
 clean:
 	rm -f $(APP_PATH) $(TEST_PATH) $(LIB_PATH)
@@ -40,24 +54,12 @@ clean:
 	
 .PHONY: run
 run: $(APP_RUN)
-	mpiexec $(APP_RUN)
-
-# .PHONY: debug
-# debug: $(DEBUG_PATH)
-
-# $(DEBUG_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/MD_modeling/MD_modeling.cpp
-# 	$(CC) -g -o $@ -Wall $^ $(LDLIBS)
+	$(APP_RUN)
 	
-# .PHONY: drun
-# drun: $(DEBUG_PATH)
-# 	gdb $(DEBUG_PATH)
+.PHONY: mrun
+mrun: $(MPI_RUN)
+	mpiexec $(MPI_RUN)
 	
-# .PHONY: mpi
-# debug: $(DEBUG_PATH)
-
-# $(MPI_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
-# 	$(MPICXX) -g -o $@ -Wall $^ -lm
-	
-# .PHONY: drun
-# drun: $(DEBUG_PATH)
-# 	gdb $(DEBUG_PATH)
+.PHONY: drun
+drun: $(DEBUG_PATH)
+	gdb $(DEBUG_PATH)
