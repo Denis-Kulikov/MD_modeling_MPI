@@ -35,6 +35,11 @@ double Vector3f::VLen()
     return sqrt(VLenSq());
 }
 
+double Vector3f::VCSum()
+{
+    return x + y + z;
+}
+
 double Vector3f::Distance(const Vector3f &v)
 {
     return sqrt(pow(v.x - x, 2) + pow(v.y - y, 2) + pow(v.z - z, 2));

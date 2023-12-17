@@ -12,6 +12,7 @@ OBJ_DIR = obj
 SRC_DIR = src
 
 APP_PATH = $(BIN_DIR)/$(APP_NAME)
+DEBUG_PATH = $(BIN_DIR)/$(APP_NAME)_debug
 
 SRC_EXT = cpp
 APP_RUN = $(BIN_DIR)/./$(APP_NAME)
@@ -38,3 +39,13 @@ clean:
 .PHONY: run
 run: $(APP_RUN)
 	$(APP_RUN)
+
+.PHONY: debug
+debug: $(DEBUG_PATH)
+
+$(DEBUG_PATH): src/OpenGL/main.cpp src/OpenGL/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/OpenGL/n_body.cpp
+	$(CC) -g -o $@ -Wall $^ $(LDLIBS)
+	
+.PHONY: drun
+drun: $(DEBUG_PATH)
+	gdb $(DEBUG_PATH)

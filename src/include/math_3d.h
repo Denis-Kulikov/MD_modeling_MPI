@@ -61,6 +61,7 @@ public:
     double VDot(const Vector3f &v);
     double VLenSq();
     double VLen();
+    double VCSum();
     double Distance(const Vector3f &v);
     Vector3f VAdd(const Vector3f &v);
     Vector3f VSub(const Vector3f &v);

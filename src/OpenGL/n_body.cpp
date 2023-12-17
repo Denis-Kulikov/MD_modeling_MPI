@@ -3,23 +3,34 @@
 extern struct distance_by_index *distances;
 extern Pipeline pipeline;
 
-int iter = 0;
-
 int nMol;
 DataMol Mol;
-const int size = 2;
-Vector3i initUcell(size, size, size);
-Vector3f region(size, size, size);
+Vector3i initUcell;
+Vector3f region;
 Vector3f vSum;
 Prop kinEnergy, pressure, totEnergy;
 
-double deltaT = 0.005;
-double density = 0.8;
-
-double rCut, temperature, timeNow, uSum, velMag, virSum, vvSum;
+double deltaT, density, rCut, temperature, timeNow, uSum, velMag, virSum, vvSum;
 int moreCycles, stepAvg, stepCount, stepEquil, stepLimit;
 
-void VRand(Vector3f &p) {
+void PrintSummary (const char *FileName)
+{
+    FILE *fp = fopen(FileName, "w");
+    TRY((fp == nullptr), "Fopen error.");
+
+    fprintf (fp, "%5d %8.4f %7.4f \n%7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
+             stepCount, timeNow, vSum.VCSum() / nMol,
+             PropEst(totEnergy),PropEst (kinEnergy), PropEst (pressure));
+
+    printf ("%5d %8.4f %7.4f \n%7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
+            stepCount, timeNow, vSum.VCSum() / nMol,
+            PropEst(totEnergy),PropEst (kinEnergy), PropEst (pressure));
+
+    fclose(fp);
+}
+
+void VRand(Vector3f &p)
+{
     double s, x, y;
     s = 2.;
     while (s > 1.) {
@@ -33,49 +44,15 @@ void VRand(Vector3f &p) {
     p.y = s * y;
 }
 
-void move_particles(double dt)
+void CalculateDistance()
 {
     DO_MOL(nMol) {
-        Vector3f dv(
-            Mol.f[i].x / Mol.m[i] * dt,
-            Mol.f[i].y / Mol.m[i] * dt,
-            Mol.f[i].z / Mol.m[i] * dt
-        );
-        
-        Vector3f dp(
-            (Mol.v[i].x + dv.x * 0.5) * dt,
-            (Mol.v[i].y + dv.y * 0.5) * dt,
-            (Mol.v[i].z + dv.z * 0.5) * dt
-        );
-
-        Mol.v[i] = Mol.v[i].VAdd(dv);
-        Mol.p[i] = Mol.p[i].VAdd(dp);
-
-if (unlikely(Mol.p[i].x < -region.x)) Mol.p[i].x = fmod(region.x * 2 - Mol.p[i].x, 2 * region.x) * 0.5 + 0.5 * region.x;
-if (unlikely(Mol.p[i].x > region.x)) Mol.p[i].x = fmod(-region.x * 2 + Mol.p[i].x, 2 * region.x) * 0.5 - 0.5 * region.x;
-
-if (unlikely(Mol.p[i].y < -region.y)) Mol.p[i].y = fmod(region.y * 2 - Mol.p[i].y, 2 * region.y) * 0.5 + 0.5 * region.y;
-if (unlikely(Mol.p[i].y > region.y)) Mol.p[i].y = fmod(-region.y * 2 + Mol.p[i].y, 2 * region.y) * 0.5 - 0.5 * region.y;
-
-if (unlikely(Mol.p[i].z < -region.z)) Mol.p[i].z = fmod(region.z * 2 - Mol.p[i].z, 2 * region.z) * 0.5 + 0.5 * region.z;
-if (unlikely(Mol.p[i].z > region.z)) Mol.p[i].z = fmod(-region.z * 2 + Mol.p[i].z, 2 * region.z) * 0.5 - 0.5 * region.z;
-
-
-        // Mol.p[i].x = (Mol.p[i].x >= -region.x) * Mol.p[i].x + (Mol.p[i].x < -region.x) * (2 * region.x - Mol.p[i].x);  
-        // Mol.p[i].x = (Mol.p[i].x <= region.x)  * Mol.p[i].x + (Mol.p[i].x > region.x) * (-2 * region.x + Mol.p[i].x); 
-        // Mol.p[i].y = (Mol.p[i].y >= -region.y) * Mol.p[i].y + (Mol.p[i].y < -region.y) * (2 * region.y - Mol.p[i].y); 
-        // Mol.p[i].y = (Mol.p[i].y <= region.y)  * Mol.p[i].y + (Mol.p[i].y > region.y) * (-2 * region.y + Mol.p[i].y); 
-        // Mol.p[i].z = (Mol.p[i].z >= -region.z) * Mol.p[i].z + (Mol.p[i].z < -region.z) * (2 * region.z - Mol.p[i].z); 
-        // Mol.p[i].z = (Mol.p[i].z <= region.z)  * Mol.p[i].z + (Mol.p[i].z > region.z) * (-2 * region.z + Mol.p[i].z); 
-
-        // Mol.f[i].x = Mol.f[i].y = Mol.f[i].z = 0;
-
         distances[i].index = i;
         distances[i].dist = Mol.p[i].Distance(pipeline.camera.Params.WorldPos);
     }
 }
 
-void calculate_forces ()
+void CalculateForces ()
 {
     Vector3f dr;
     double fcVal, rr, rrCut, rri, rri3;
@@ -114,12 +91,37 @@ void calculate_forces ()
             }
         }
     }
+}
 
-    // if ((iter % 500) == 0) {
-        // DO_MOL(nMol) printf("C: %0.2f %0.2f %0.2f\n", Mol.p[i].x, Mol.p[i].y, Mol.p[i].z);
-        // printf("\n");
-    // }
-    iter++;
+void LeapfrogStep (int part)
+{
+    if (part == 1) {
+        DO_MOL(nMol) {
+            Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT));  
+            Mol.p[i] = Mol.p[i].VAdd(Mol.v[i].VScale(deltaT)); 
+
+            // if (unlikely(Mol.p[i].x < -region.x)) Mol.p[i].x = fmod(region.x * 2 - Mol.p[i].x, 2 * region.x) * 0.5 + 0.5 * region.x;
+            // if (unlikely(Mol.p[i].x > region.x)) Mol.p[i].x = fmod(-region.x * 2 + Mol.p[i].x, 2 * region.x) * 0.5 - 0.5 * region.x;
+
+            // if (unlikely(Mol.p[i].y < -region.y)) Mol.p[i].y = fmod(region.y * 2 - Mol.p[i].y, 2 * region.y) * 0.5 + 0.5 * region.y;
+            // if (unlikely(Mol.p[i].y > region.y)) Mol.p[i].y = fmod(-region.y * 2 + Mol.p[i].y, 2 * region.y) * 0.5 - 0.5 * region.y;
+
+            // if (unlikely(Mol.p[i].z < -region.z)) Mol.p[i].z = fmod(region.z * 2 - Mol.p[i].z, 2 * region.z) * 0.5 + 0.5 * region.z;
+            // if (unlikely(Mol.p[i].z > region.z)) Mol.p[i].z = fmod(-region.z * 2 + Mol.p[i].z, 2 * region.z) * 0.5 - 0.5 * region.z;
+
+
+            if (unlikely(Mol.p[i].x < -region.x)) Mol.p[i].x = (region.x + fmod(Mol.p[i].x, region.x));
+            if (unlikely(Mol.p[i].x > region.x)) Mol.p[i].x = (-region.x + fmod(Mol.p[i].x, region.x));
+
+            if (unlikely(Mol.p[i].y < -region.y)) Mol.p[i].y = (region.y + fmod(Mol.p[i].y, region.y));
+            if (unlikely(Mol.p[i].y > region.y)) Mol.p[i].y = (-region.y + fmod(Mol.p[i].y, region.y));
+
+            if (unlikely(Mol.p[i].z < -region.z)) Mol.p[i].z = (region.z + fmod(Mol.p[i].z, region.z));
+            if (unlikely(Mol.p[i].z > region.z)) Mol.p[i].z = (-region.z + fmod(Mol.p[i].z, region.z));
+        }
+    } else {
+        DO_MOL(nMol) Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT));  
+    }
 }
 
 void AccumProps (int icode)
@@ -204,16 +206,18 @@ void InitCoords ()
 {
     Vector3f c, gap;
     int n = 0;
-    gap = region.VDiv(initUcell);
+    gap = region.VDiv(Vector3i(initUcell.x - 1, initUcell.x - 1, initUcell.x - 1));
     for (int ny = 0; ny < initUcell.y; ny++) {
         for (int nx = 0; nx < initUcell.x; nx++) {
             for (int nz = 0; nz < initUcell.z; nz++) {
-                c.VSet (nx - 0.5f * region.x, ny - 0.5f * region.y, nz - 0.5f * region.z); 
+                c.VSet (nx, ny, nz); 
                 c = c.VMul(gap);
-                c = c.VScale(2);
+                c = c.VSub(Vector3f(region.x / 2, region.y / 2, region.z / 2));
+                c = c.VScale(2 - 1e-16);
                 Mol.p[n] = c;
                 n++;
-            }
+                if (n == nMol) return;
+            } 
         } 
     }
 }
@@ -240,52 +244,50 @@ void SetupJob ()
     InitCoords ();
     InitVels ();
     InitMass ();
-    // AccumProps (0);
+    AccumProps (0);
 }
 
 void SingleStep ()
 {
     ++ stepCount;
     timeNow = stepCount * deltaT;
-    // LeapfrogStep (1);
-    // ApplyBoundaryCond ();
-    // ComputeForces ();
-    // LeapfrogStep (2);
-    // EvalProps ();
-    // AccumProps (1); 10
-    // if (stepCount % stepAvg == 0) {
-    //     AccumProps (2);
-    //     PrintSummary (stdout);
-    //     AccumProps (0);
-    // }
+    LeapfrogStep (1);
+    CalculateForces ();
+    LeapfrogStep (2);
+    EvalProps ();
+    AccumProps (1);
+    if (stepCount % stepAvg == 0) {
+        AccumProps (2);
+        PrintSummary ("log.out");
+        AccumProps (0);
+    }
+    CalculateDistance();
 }
 
 void SetParams ()
 {
-    region.VSet(2.0f, 2.0f, 4.0f);
+    const int size = 3;
+    moreCycles = 1;
+    stepCount = 0;
+    stepAvg = 500;
+    stepEquil = 0;
+    stepLimit = 1000 * 1000;
+    deltaT = 1e-5;
+    // density = 13;
+    rCut = pow(size, 1.0f / 6.0f);
+    density = pow(size / rCut, 3);
+    // rCut = size;
+    region.VSet(size, size, size);
     nMol = static_cast<int>(region.x * region.y * region.z * density);
-    Vector3f Relations(1, region.y / region.x, region.z / region.x);
-    double SumRelations = Relations.x + Relations.y + Relations.z;
-    printf("%f %f %f\n", Relations.x, Relations.y, Relations.z);
-    printf("%f %f %f\n", nMol * Relations.x / SumRelations, nMol * Relations.y / SumRelations, nMol * Relations.z / SumRelations);
-    initUcell.x = static_cast<int>(std::round(std::pow(nMol * region.x / (region.x * region.y * region.z), 1.0f / 3.0f)) + 1);
-    initUcell.y = static_cast<int>(std::round(initUcell.x * region.y / region.x) + 1);
-    initUcell.z = static_cast<int>(std::round(initUcell.x * region.z / region.x) + 1);
+    initUcell.x = static_cast<int>(pow(nMol, 1.0 / 3.0) + 1);
+    initUcell.y = initUcell.x;
+    initUcell.z = static_cast<int>(nMol / initUcell.x / initUcell.y) + 1;
     printf("%d %d %d\n", initUcell.x, initUcell.y, initUcell.z);
-    rCut = pow(2.0f, 1.0f / 6.0f);
     velMag = sqrt (NDIM * (1.0f - 1.0f / nMol) * temperature);
-}
-
-void MoveBody()
-{
-    double dt = 1e-6;
-    calculate_forces(); 
-    move_particles(dt);
 }
 
 void init()
 {
-    density = 10;
     SetParams();
     SetupJob ();
     printf("%d\n", nMol);

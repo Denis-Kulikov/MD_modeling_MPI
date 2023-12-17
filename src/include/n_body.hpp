@@ -39,7 +39,7 @@
         (v2).z = (s1) * (v1).z 
 
 #define PropEst(v) \
-v.sum, v.sum2
+v.sum1, v.sum2
 
 #define RandR() \
 (static_cast<double>(rand()) / (double)RAND_MAX)
@@ -58,8 +58,9 @@ typedef struct {
     double *m;
 } DataMol;
 
-void init_particles ();
-void MoveBody();
+// void init_particles ();
+// void MoveBody();
+void SingleStep ();
 void init();
 
 /*
@@ -119,3 +120,58 @@ VWrap (v, z);       \
 }
 */
 
+// void ApplyBoundaryCond ()
+// {
+//     DO_MOL(nMol) {
+//         if (unlikely(Mol.p[i].x < -region.x)) Mol.p[i].x = fmod(region.x * 2 - Mol.p[i].x, 2 * region.x) * 0.5 + 0.5 * region.x;
+//         if (unlikely(Mol.p[i].x > region.x)) Mol.p[i].x = fmod(-region.x * 2 + Mol.p[i].x, 2 * region.x) * 0.5 - 0.5 * region.x;
+
+//         if (unlikely(Mol.p[i].y < -region.y)) Mol.p[i].y = fmod(region.y * 2 - Mol.p[i].y, 2 * region.y) * 0.5 + 0.5 * region.y;
+//         if (unlikely(Mol.p[i].y > region.y)) Mol.p[i].y = fmod(-region.y * 2 + Mol.p[i].y, 2 * region.y) * 0.5 - 0.5 * region.y;
+
+//         if (unlikely(Mol.p[i].z < -region.z)) Mol.p[i].z = fmod(region.z * 2 - Mol.p[i].z, 2 * region.z) * 0.5 + 0.5 * region.z;
+//         if (unlikely(Mol.p[i].z > region.z)) Mol.p[i].z = fmod(-region.z * 2 + Mol.p[i].z, 2 * region.z) * 0.5 - 0.5 * region.z;
+//     }
+// }
+
+// void MoveParticles(double dt)
+// {
+//     DO_MOL(nMol) {
+//         Vector3f dv(
+//             Mol.f[i].x / Mol.m[i] * dt,
+//             Mol.f[i].y / Mol.m[i] * dt,
+//             Mol.f[i].z / Mol.m[i] * dt
+//         );
+        
+//         Vector3f dp(
+//             (Mol.v[i].x + dv.x * 0.5) * dt,
+//             (Mol.v[i].y + dv.y * 0.5) * dt,
+//             (Mol.v[i].z + dv.z * 0.5) * dt
+//         );
+
+//         Mol.v[i] = Mol.v[i].VAdd(dv);
+//         Mol.p[i] = Mol.p[i].VAdd(dp);
+
+//         if (unlikely(Mol.p[i].x < -region.x)) Mol.p[i].x = fmod(region.x * 2 - Mol.p[i].x, 2 * region.x) * 0.5 + 0.5 * region.x;
+//         if (unlikely(Mol.p[i].x > region.x)) Mol.p[i].x = fmod(-region.x * 2 + Mol.p[i].x, 2 * region.x) * 0.5 - 0.5 * region.x;
+
+//         if (unlikely(Mol.p[i].y < -region.y)) Mol.p[i].y = fmod(region.y * 2 - Mol.p[i].y, 2 * region.y) * 0.5 + 0.5 * region.y;
+//         if (unlikely(Mol.p[i].y > region.y)) Mol.p[i].y = fmod(-region.y * 2 + Mol.p[i].y, 2 * region.y) * 0.5 - 0.5 * region.y;
+
+//         if (unlikely(Mol.p[i].z < -region.z)) Mol.p[i].z = fmod(region.z * 2 - Mol.p[i].z, 2 * region.z) * 0.5 + 0.5 * region.z;
+//         if (unlikely(Mol.p[i].z > region.z)) Mol.p[i].z = fmod(-region.z * 2 + Mol.p[i].z, 2 * region.z) * 0.5 - 0.5 * region.z;
+
+
+//         // Mol.p[i].x = (Mol.p[i].x >= -region.x) * Mol.p[i].x + (Mol.p[i].x < -region.x) * (2 * region.x - Mol.p[i].x);  
+//         // Mol.p[i].x = (Mol.p[i].x <= region.x)  * Mol.p[i].x + (Mol.p[i].x > region.x) * (-2 * region.x + Mol.p[i].x); 
+//         // Mol.p[i].y = (Mol.p[i].y >= -region.y) * Mol.p[i].y + (Mol.p[i].y < -region.y) * (2 * region.y - Mol.p[i].y); 
+//         // Mol.p[i].y = (Mol.p[i].y <= region.y)  * Mol.p[i].y + (Mol.p[i].y > region.y) * (-2 * region.y + Mol.p[i].y); 
+//         // Mol.p[i].z = (Mol.p[i].z >= -region.z) * Mol.p[i].z + (Mol.p[i].z < -region.z) * (2 * region.z - Mol.p[i].z); 
+//         // Mol.p[i].z = (Mol.p[i].z <= region.z)  * Mol.p[i].z + (Mol.p[i].z > region.z) * (-2 * region.z + Mol.p[i].z); 
+
+//         // Mol.f[i].x = Mol.f[i].y = Mol.f[i].z = 0;
+
+//         distances[i].index = i;
+//         distances[i].dist = Mol.p[i].Distance(pipeline.camera.Params.WorldPos);
+//     }
+// }

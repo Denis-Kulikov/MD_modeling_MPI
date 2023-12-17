@@ -34,7 +34,8 @@ const int height = 768;
 
 const double radius = 0.075f;
 const float PI = 3.14159265359f;
-extern int nMol;
+extern int nMol, moreCycles, stepCount, stepLimit;
+
 const int SPHERE_SEGMENTS = 16;
 int numVertices;
 int numIndices;
@@ -43,7 +44,6 @@ Pipeline pipeline;
 struct distance_by_index *distances;
 extern Vector3f region;
 extern DataMol Mol;
-Vector3f *p;
 
 void CreateCube()
 {
@@ -159,7 +159,7 @@ void DrawCube()
 
 void DrawSphere(int i)
 {
-    pipeline.object.SetWorldPos(p[i].x, p[i].y, p[i].z);
+    pipeline.object.SetWorldPos(Mol.p[i].x, Mol.p[i].y, Mol.p[i].z);
 
     GLfloat floatMatrix[16];
     for (int i = 0; i < 4; i++) {
@@ -289,7 +289,7 @@ void CompileShaders()
 
 static void KeyboardCB(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    double speed_movement = 0.1;
+    double speed_movement = 0.1 * region.z;
     double speed_rotation = 0.075;
     switch (key) {
         case GLFW_KEY_F:
@@ -361,26 +361,23 @@ int main(int argc, char** argv)
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
     CompileShaders();
 
-    Vector3f CameraPos(0.0f, 0.1f, -7.0f);
+    init();
+    Vector3f CameraPos(0.0f, 0.1f, -region.z * 2 - pow(2, region.z));
     Vector3f CameraTarget(0.0f, 0.0f, 1.0f);
     Vector3f CameraUp(0.0f, 1.0f, 0.0f);
     pipeline.camera.SetCamera(CameraPos, CameraTarget, CameraUp);
-    pipeline.camera.SetPerspectiveProj(60.0f, width, height, 0.5f, 100.0f);
+    pipeline.camera.SetPerspectiveProj(60.0f, width, height, 0.5f, 1000.0f);
     pipeline.object.SetScale(radius, radius, radius);
-    init();
     TRY(((distances = (distance_by_index*)malloc(sizeof(*distances) * nMol)) == nullptr), "Memory alloc error (main).");
-    p = Mol.p;
 
-    bool moreCycles = true;
     while (!glfwWindowShouldClose(window) && moreCycles) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        MoveBody();
-        // SingleStep ();
+        SingleStep ();
         RenderSceneCB();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
-        if (stepCount >= stepLimit) moreCycles = false;
+        if (stepCount >= stepLimit) moreCycles = 0;
     }
 
     glfwTerminate();
