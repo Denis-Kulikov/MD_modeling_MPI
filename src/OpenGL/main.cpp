@@ -12,7 +12,7 @@
 #include <GLFW/glfw3.h>
 
 #include "../include/distance.hpp"
-#include "../include/n_body.hpp"
+#include "../include/MD_modeling.hpp"
 #include "../include/math_3d.h"
 #include "../include/pipeline.hpp"
 

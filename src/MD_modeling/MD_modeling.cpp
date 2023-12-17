@@ -1,4 +1,4 @@
-#include "../include/n_body.hpp"
+#include "../include/MD_modeling.hpp"
 
 extern struct distance_by_index *distances;
 extern Pipeline pipeline;
@@ -99,16 +99,6 @@ void LeapfrogStep (int part)
         DO_MOL(nMol) {
             Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT));  
             Mol.p[i] = Mol.p[i].VAdd(Mol.v[i].VScale(deltaT)); 
-
-            // if (unlikely(Mol.p[i].x < -region.x)) Mol.p[i].x = fmod(region.x * 2 - Mol.p[i].x, 2 * region.x) * 0.5 + 0.5 * region.x;
-            // if (unlikely(Mol.p[i].x > region.x)) Mol.p[i].x = fmod(-region.x * 2 + Mol.p[i].x, 2 * region.x) * 0.5 - 0.5 * region.x;
-
-            // if (unlikely(Mol.p[i].y < -region.y)) Mol.p[i].y = fmod(region.y * 2 - Mol.p[i].y, 2 * region.y) * 0.5 + 0.5 * region.y;
-            // if (unlikely(Mol.p[i].y > region.y)) Mol.p[i].y = fmod(-region.y * 2 + Mol.p[i].y, 2 * region.y) * 0.5 - 0.5 * region.y;
-
-            // if (unlikely(Mol.p[i].z < -region.z)) Mol.p[i].z = fmod(region.z * 2 - Mol.p[i].z, 2 * region.z) * 0.5 + 0.5 * region.z;
-            // if (unlikely(Mol.p[i].z > region.z)) Mol.p[i].z = fmod(-region.z * 2 + Mol.p[i].z, 2 * region.z) * 0.5 - 0.5 * region.z;
-
 
             if (unlikely(Mol.p[i].x < -region.x)) Mol.p[i].x = (region.x + fmod(Mol.p[i].x, region.x));
             if (unlikely(Mol.p[i].x > region.x)) Mol.p[i].x = (-region.x + fmod(Mol.p[i].x, region.x));

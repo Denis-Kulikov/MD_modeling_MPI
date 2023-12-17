@@ -1,7 +1,8 @@
-APP_NAME = OpenGL
+APP_NAME = MD
 LIB_NAME = Lib
 
 CC = g++
+MPICXX = mpicxx
 CFLAGS = -c -Wall -Wextra -Werror
 CPPFLAGS = -I src -MP -MMD
 LDLIBS = -lglfw -lGL -lGLEW -lm
@@ -13,6 +14,7 @@ SRC_DIR = src
 
 APP_PATH = $(BIN_DIR)/$(APP_NAME)
 DEBUG_PATH = $(BIN_DIR)/$(APP_NAME)_debug
+MPI_PATH = $(BIN_DIR)/$(APP_NAME)_mpi
 
 SRC_EXT = cpp
 APP_RUN = $(BIN_DIR)/./$(APP_NAME)
@@ -28,7 +30,7 @@ DEPS = $(APP_OBJECTS:.o=.d) $(LIB_OBJECTS:.o=.d)
 .PHONY: all
 all: $(APP_PATH)
 
-$(APP_PATH): src/OpenGL/main.cpp src/OpenGL/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/OpenGL/n_body.cpp
+$(APP_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/MD_modeling/MD_modeling.cpp
 	$(CC) -o $@ -Wall $^ $(LDLIBS)
 
 .PHONY: clean
@@ -43,8 +45,18 @@ run: $(APP_RUN)
 .PHONY: debug
 debug: $(DEBUG_PATH)
 
-$(DEBUG_PATH): src/OpenGL/main.cpp src/OpenGL/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/OpenGL/n_body.cpp
+$(DEBUG_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/MD_modeling/MD_modeling.cpp
 	$(CC) -g -o $@ -Wall $^ $(LDLIBS)
+	
+.PHONY: drun
+drun: $(DEBUG_PATH)
+	gdb $(DEBUG_PATH)
+	
+.PHONY: mpi
+debug: $(DEBUG_PATH)
+
+$(MPI_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
+	$(MPICXX) -g -o $@ -Wall $^ -lm
 	
 .PHONY: drun
 drun: $(DEBUG_PATH)
