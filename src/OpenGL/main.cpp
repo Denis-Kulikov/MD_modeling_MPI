@@ -11,12 +11,12 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
-#include "../include/math_3d.h"
 #include "../include/distance.hpp"
 #include "../include/n_body.hpp"
+#include "../include/math_3d.h"
 #include "../include/pipeline.hpp"
 
-#define NUMBER_BODY 8 * 8
+#define NUMBER_BODY 8 * 40
 
 using namespace std;
 
@@ -32,23 +32,18 @@ GLuint ShaderCube;
 const int width = 1280;
 const int height = 768;
 
-double width_space   = 2.0f;
-double height_space  = 2.0f;
-double length_space  = 2.0f;
-
-const double radius = 0.2f;
+const double radius = 0.075f;
 const float PI = 3.14159265359f;
-int n = NUMBER_BODY;
-const int SPHERE_SEGMENTS = 30;
+extern int nMol;
+const int SPHERE_SEGMENTS = 16;
 int numVertices;
 int numIndices;
 
 Pipeline pipeline;
-struct distance_by_index *distances = (distance_by_index*)malloc(sizeof(*distances) * n);
-Vector3f *p = (Vector3f*)malloc(sizeof(*p) * n);
-Vector3f *f = (Vector3f*)malloc(sizeof(*f) * n);
-Vector3f *v = (Vector3f*)malloc(sizeof(*v) * n);
-double *m = (double*)malloc(sizeof(*m) * n);
+struct distance_by_index *distances;
+extern Vector3f region;
+extern DataMol Mol;
+Vector3f *p;
 
 void CreateCube()
 {
@@ -148,7 +143,7 @@ void DrawCube()
 {
     pipeline.object.SetWorldPos(0, 0, 0);
     pipeline.object.SetRotate(0, 0, 0);
-    pipeline.object.SetScale(width_space + radius, height_space + radius, length_space + radius);
+    pipeline.object.SetScale(region.x + radius, region.y + radius, region.z + radius);
 
     GLfloat floatMatrix[16];
     for (int i = 0; i < 4; i++) {
@@ -173,7 +168,7 @@ void DrawSphere(int i)
     }
 
     glUniformMatrix4fv(gWorldLocation, 1, GL_TRUE, floatMatrix);
-    glUniform1f(gMassLocation, static_cast<float>(m[i]));
+    glUniform1f(gMassLocation, static_cast<float>(Mol.m[i]));
 
     glBindVertexArray(VAO);
     glDrawElements(GL_TRIANGLES, numIndices, GL_UNSIGNED_INT, 0);
@@ -182,21 +177,19 @@ void DrawSphere(int i)
 
 static void RenderSceneCB()
 {
-    glUseProgram(ShaderCube);
-    CreateCube();
-    DrawCube();
-
-    move_body(radius);
-
-    qsort(distances, n, sizeof(*distances), CompareParticleDistances);
+    qsort(distances, nMol, sizeof(*distances), CompareParticleDistances);
     glUseProgram(ShaderSphere); 
     createSphere();
     pipeline.object.SetScale(radius, radius, radius);
     pipeline.object.SetRotate(0, 0, 0);
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < nMol; i++) {
         int particleIndex = distances[i].index;
         DrawSphere(particleIndex);
     }
+
+    glUseProgram(ShaderCube);
+    CreateCube();
+    DrawCube();
 }
 
 GLuint LoadShader(const char *shader_path, GLuint type)
@@ -296,7 +289,7 @@ void CompileShaders()
 
 static void KeyboardCB(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
-    double speed_movement = 0.125;
+    double speed_movement = 0.1;
     double speed_rotation = 0.075;
     switch (key) {
         case GLFW_KEY_F:
@@ -374,22 +367,32 @@ int main(int argc, char** argv)
     pipeline.camera.SetCamera(CameraPos, CameraTarget, CameraUp);
     pipeline.camera.SetPerspectiveProj(60.0f, width, height, 0.5f, 100.0f);
     pipeline.object.SetScale(radius, radius, radius);
-    init_partiecle();
+    init();
+    TRY(((distances = (distance_by_index*)malloc(sizeof(*distances) * nMol)) == nullptr), "Memory alloc error (main).");
+    p = Mol.p;
 
-    while (!glfwWindowShouldClose(window)) {
+    bool moreCycles = true;
+    while (!glfwWindowShouldClose(window) && moreCycles) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        MoveBody();
+        // SingleStep ();
         RenderSceneCB();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
+        if (stepCount >= stepLimit) moreCycles = false;
     }
 
     glfwTerminate();
 
-    free(m);
-    free(v);
-    free(f);
-    free(p);
+    // printf ("%5d %8.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
+    //         stepCount, timeNow, VCSum (vSum) / nMol, PropEst (totEnergy), 5
+    //         PropEst (kinEnergy), PropEst (pressure));
+
+    free(Mol.m);
+    free(Mol.v);
+    free(Mol.f);
+    free(Mol.p);
 
     return 0;
 }

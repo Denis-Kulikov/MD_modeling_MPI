@@ -1,21 +1,3 @@
-/*
-
-	Copyright 2010 Etay Meiri
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
-
 #ifndef MATH_3D_H
 #define	MATH_3D_H
 
@@ -41,8 +23,25 @@ struct Vector2f
     }
 };
 
-struct Vector3f
+class Vector3i
 {
+public:
+    int x, y, z;
+    Vector3i() {};
+    Vector3i(int _x, int _y, int _z)
+    {
+        x = _x;
+        y = _y;
+        z = _z;
+    }
+
+    Vector3i VMul(Vector3i v) {return Vector3i(x * v.x, y * v.y, z * v.z);};
+    Vector3i VScale(double s) {return VMul(Vector3i(s, s, s));};
+};
+
+class Vector3f
+{
+public:
     double x;
     double y;
     double z;
@@ -58,25 +57,28 @@ struct Vector3f
         z = _z;
     }
 
+    Vector3f& Normalize();
+    double VDot(const Vector3f &v);
+    double VLenSq();
+    double VLen();
+    double Distance(const Vector3f &v);
+    Vector3f VAdd(const Vector3f &v);
+    Vector3f VSub(const Vector3f &v);
+    Vector3f VMul(const Vector3f &v);
+    Vector3f VDiv(const Vector3f &v);
+    Vector3f VDiv(const Vector3i &v);
+    Vector3f VScale(double s);
+    void VSet(const Vector3f &v);
+    void VSet(double s);
+    void VSet(double sx, double sy, double sz);
+    void VSetI(const Vector3i &v);
+    void VZero();
+    Vector3f VVV();
+
     Vector3f Cross(const Vector3f& v) const;
 
-    Vector3f& Normalize();
-
-    void Print() const
-    {
-        printf("%.02f, %.02f, %.02f\n", x, y, z);
-    }
-    
-    double distance(const Vector3f &p) {
-        return sqrt(pow(p.x - x, 2) + pow(p.y - y, 2) + pow(p.z - z, 2));
-    }
+    void Print() const;
 };
-
-double VectorDot(Vector3f a, Vector3f b);
-Vector3f VectorNormalize(Vector3f v);
-Vector3f VectorSubtract(Vector3f a, Vector3f b);
-Vector3f VectorAdd(Vector3f a, Vector3f b);
-Vector3f VectorScale(Vector3f v, double s);
 
 class Matrix4f
 {

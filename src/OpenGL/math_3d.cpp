@@ -20,6 +20,95 @@ Vector3f& Vector3f::Normalize()
     return *this;
 }
 
+double Vector3f::VDot(const Vector3f &v)
+{
+    return x * v.x + y * v.y + z * v.z;
+}
+
+double Vector3f::VLenSq()
+{
+    return VDot(*this);
+}
+
+double Vector3f::VLen()
+{
+    return sqrt(VLenSq());
+}
+
+double Vector3f::Distance(const Vector3f &v)
+{
+    return sqrt(pow(v.x - x, 2) + pow(v.y - y, 2) + pow(v.z - z, 2));
+}
+
+Vector3f Vector3f::VAdd(const Vector3f &v)
+{
+    return Vector3f(x + v.x, y + v.y, z + v.z);
+}
+
+Vector3f Vector3f::VSub(const Vector3f &v)
+{
+    return Vector3f(x - v.x, y - v.y, z - v.z);
+}
+
+Vector3f Vector3f::VMul(const Vector3f &v)
+{
+
+    return Vector3f(x * v.x, y * v.y, z * v.z);
+}
+
+Vector3f Vector3f::VDiv(const Vector3f &v)
+{
+    return Vector3f(x / v.x, y / v.y, z / v.z);
+}
+
+Vector3f Vector3f::VDiv(const Vector3i &v)
+{
+    return Vector3f(x / v.x, y / v.y, z / v.z);
+}
+
+Vector3f Vector3f::VScale(double s)
+{
+    return VMul(Vector3f(s, s, s));
+}
+
+void Vector3f::VSet(const Vector3f &v)
+{
+    x = v.x;
+    y = v.y;
+    z = v.z;
+}
+
+void Vector3f::VSet(double s)
+{
+    x = s;
+    y = s;
+    z = s;
+}
+
+void Vector3f::VSet(double sx, double sy, double sz)
+{
+    x = sx;
+    y = sy;
+    z = sz;
+}
+
+void Vector3f::VSetI(const Vector3i &v)
+{
+    x = v.x;
+    y = v.y;
+    z = v.z;
+}
+
+void Vector3f::VZero()
+{
+    VSet(0);
+}
+
+Vector3f Vector3f::VVV()
+{
+    return Vector3f(0, 0, 0);
+}
+
 double VectorDot(Vector3f a, Vector3f b)
 {
     return a.x * b.x + a.y * b.y + a.z * b.z;
@@ -55,13 +144,18 @@ Vector3f VectorAdd(Vector3f a, Vector3f b)
     return result;
 }
 
-Vector3f VectorScale(Vector3f v, double s)
+Vector3f VectorScale(const Vector3f &v, double s)
 {
     Vector3f result;
     result.x = v.x * s;
     result.y = v.y * s;
     result.z = v.z * s;
     return result;
+}
+
+void Vector3f::Print() const
+{
+    printf("%.02f, %.02f, %.02f\n", x, y, z);
 }
 
 
