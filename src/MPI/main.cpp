@@ -1,4 +1,6 @@
-#include "../include/glfw.hpp"
+// #include "../include/glfw.hpp"
+#include "../include/math_3d.h"
+#include "../include/MD_modeling.hpp"
 #include <mpi.h>
 
 // extern struct distance_by_index distances;
@@ -87,7 +89,7 @@ int main(int argc, char** argv)
         first = FIRST(rank, commsize);
         last = LAST(rank, commsize);
     }
-    // printf("FL: %d %d\n", first, last);
+    printf("FL: %d %d\n", first, last);
 
     while (moreCycles) {
         SingleStep (first, last);

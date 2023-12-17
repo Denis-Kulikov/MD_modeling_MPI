@@ -45,7 +45,7 @@ $(DEBUG_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw
 mpi: $(MPI_PATH)
 
 $(MPI_PATH): src/MPI/main.cpp  src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
-	$(MPICXX) -o $@ -Wall $^ $(LDLIBS)
+	$(MPICXX) -o $@ -Wall $^ -lm
 	
 .PHONY: clean
 clean:
