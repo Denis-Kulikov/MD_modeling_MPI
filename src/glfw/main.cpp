@@ -38,6 +38,7 @@ void ReadParams()
 int main(int argc, char** argv)
 {
     result = fopen("data/result.bin", "rb");
+    TRY((result == nullptr), "data/result.bin not found.\n");
     ReadParams();
     region.VSet(size, size, size);
     GLFWwindow* window = nullptr;

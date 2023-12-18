@@ -170,7 +170,6 @@ void SingleStep (int first, int last)
     LeapfrogStep(1, first, last);
     CalculateForces(first, last);
     LeapfrogStep(2, first, last);
-    // CalculateDistance(first, last);
 
     if (stepCount == stepLimit) {
         if (first == 0) {
@@ -273,11 +272,21 @@ void SetParams ()
     stepAvg = 200;
     stepEquil = 0;
     stepLimit = 1 * 1000;
-    stepWrite = stepLimit / 500;
+    stepWrite = 20;
     temperature = 1;
-    size = 15;
-    density = 0.3;
-    deltaT = 1e-3;
+
+    // 1012
+    // size = 15;
+    // density = 0.3;
+
+    // 2048
+    // size = 16;
+    // density = 0.5;
+
+    size = 20;
+    density = 0.5;
+
+    deltaT = 1e-5;
     alpha = 10;
     rCut = pow(size, 1.0f / 3.0f);
     region.VSet(size, size, size);
@@ -285,6 +294,5 @@ void SetParams ()
     initUcell.x = static_cast<int>(pow(nMol, 1.0 / 3.0) + 1);
     initUcell.y = initUcell.x;
     initUcell.z = static_cast<int>(nMol / initUcell.x / initUcell.y) + 1;
-    // printf("%d %d %d\n", initUcell.x, initUcell.y, initUcell.z);
     velMag = sqrt (NDIM * (1.0f - 1.0f / nMol) * temperature);
 }
