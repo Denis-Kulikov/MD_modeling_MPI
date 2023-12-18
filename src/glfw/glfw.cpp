@@ -332,6 +332,13 @@ void InitializeGLFW(GLFWwindow* &window)
         exit(EXIT_FAILURE);
     }
 
+    Vector3f CameraPos(0.0f, 0.1f, -region.z * 2 - 1);
+    Vector3f CameraTarget(0.0f, 0.0f, 1.0f);
+    Vector3f CameraUp(0.0f, 1.0f, 0.0f);
+    pipeline.camera.SetCamera(CameraPos, CameraTarget, CameraUp);
+    pipeline.camera.SetPerspectiveProj(60.0f, width, height, 0.5f, 1000.0f);
+    pipeline.object.SetScale(0, 0, 0);
+
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
