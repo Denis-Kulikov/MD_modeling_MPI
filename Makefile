@@ -30,8 +30,8 @@ DEPS = $(APP_OBJECTS:.o=.d) $(LIB_OBJECTS:.o=.d)
 .PHONY: all
 all: $(APP_PATH)
 
-$(APP_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/MD_modeling/MD_modeling.cpp
-	$(CC) -o $@ -Wall $^ $(LDLIBS)
+$(APP_PATH): src/MPI/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
+	$(MPICXX) -o $@ -Wall $^ $(LDLIBS)
 
 .PHONY: clean
 clean:
@@ -40,24 +40,24 @@ clean:
 	
 .PHONY: run
 run: $(APP_RUN)
-	$(APP_RUN)
+	mpiexec $(APP_RUN)
 
-.PHONY: debug
-debug: $(DEBUG_PATH)
+# .PHONY: debug
+# debug: $(DEBUG_PATH)
 
-$(DEBUG_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/MD_modeling/MD_modeling.cpp
-	$(CC) -g -o $@ -Wall $^ $(LDLIBS)
+# $(DEBUG_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/OpenGL/pipeline.cpp src/OpenGL/distance.cpp src/MD_modeling/MD_modeling.cpp
+# 	$(CC) -g -o $@ -Wall $^ $(LDLIBS)
 	
-.PHONY: drun
-drun: $(DEBUG_PATH)
-	gdb $(DEBUG_PATH)
+# .PHONY: drun
+# drun: $(DEBUG_PATH)
+# 	gdb $(DEBUG_PATH)
 	
-.PHONY: mpi
-debug: $(DEBUG_PATH)
+# .PHONY: mpi
+# debug: $(DEBUG_PATH)
 
-$(MPI_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
-	$(MPICXX) -g -o $@ -Wall $^ -lm
+# $(MPI_PATH): src/OpenGL/main.cpp src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
+# 	$(MPICXX) -g -o $@ -Wall $^ -lm
 	
-.PHONY: drun
-drun: $(DEBUG_PATH)
-	gdb $(DEBUG_PATH)
+# .PHONY: drun
+# drun: $(DEBUG_PATH)
+# 	gdb $(DEBUG_PATH)

@@ -8,6 +8,8 @@
 #include <vector>
 #include <unistd.h>
 
+#include <mpi.h>
+
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
@@ -15,8 +17,6 @@
 #include "../include/MD_modeling.hpp"
 #include "../include/math_3d.h"
 #include "../include/pipeline.hpp"
-
-#define NUMBER_BODY 8 * 40
 
 using namespace std;
 
@@ -34,9 +34,8 @@ const int height = 768;
 
 const double radius = 0.075f;
 const float PI = 3.14159265359f;
-extern int nMol, moreCycles, stepCount, stepLimit;
 
-const int SPHERE_SEGMENTS = 16;
+int SPHERE_SEGMENTS = 16;
 int numVertices;
 int numIndices;
 
@@ -44,6 +43,7 @@ Pipeline pipeline;
 struct distance_by_index *distances;
 extern Vector3f region;
 extern DataMol Mol;
+extern int nMol, moreCycles, stepCount, stepLimit;
 
 void CreateCube()
 {
@@ -294,6 +294,7 @@ static void KeyboardCB(GLFWwindow* window, int key, int scancode, int action, in
     switch (key) {
         case GLFW_KEY_F:
             glfwSetWindowShouldClose(window, GLFW_TRUE);
+            moreCycles = 0;
             break;
         case GLFW_KEY_W:
             pipeline.camera.Params.WorldPos.z += speed_movement;
@@ -352,44 +353,4 @@ void InitializeGLFW(GLFWwindow* &window)
     glEnable(GL_DEPTH_TEST);
 
     glClearColor(0.1f, 0.1f, 0.1f, 0.0f);
-}
-
-int main(int argc, char** argv)
-{
-    GLFWwindow* window = nullptr;
-    InitializeGLFW(window);
-    glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
-    CompileShaders();
-
-    init();
-    Vector3f CameraPos(0.0f, 0.1f, -region.z * 2 - pow(2, region.z));
-    Vector3f CameraTarget(0.0f, 0.0f, 1.0f);
-    Vector3f CameraUp(0.0f, 1.0f, 0.0f);
-    pipeline.camera.SetCamera(CameraPos, CameraTarget, CameraUp);
-    pipeline.camera.SetPerspectiveProj(60.0f, width, height, 0.5f, 1000.0f);
-    pipeline.object.SetScale(radius, radius, radius);
-    TRY(((distances = (distance_by_index*)malloc(sizeof(*distances) * nMol)) == nullptr), "Memory alloc error (main).");
-
-    while (!glfwWindowShouldClose(window) && moreCycles) {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        SingleStep ();
-        RenderSceneCB();
-
-        glfwSwapBuffers(window);
-        glfwPollEvents();
-        if (stepCount >= stepLimit) moreCycles = 0;
-    }
-
-    glfwTerminate();
-
-    // printf ("%5d %8.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
-    //         stepCount, timeNow, VCSum (vSum) / nMol, PropEst (totEnergy), 5
-    //         PropEst (kinEnergy), PropEst (pressure));
-
-    free(Mol.m);
-    free(Mol.v);
-    free(Mol.f);
-    free(Mol.p);
-
-    return 0;
 }

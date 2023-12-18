@@ -1,6 +1,6 @@
 #include "../include/MD_modeling.hpp"
 
-extern struct distance_by_index *distances;
+extern struct distance_by_index distances;
 extern Pipeline pipeline;
 
 int nMol;
@@ -10,7 +10,8 @@ Vector3f region;
 Vector3f vSum;
 Prop kinEnergy, pressure, totEnergy;
 
-double deltaT, density, rCut, temperature, timeNow, uSum, velMag, virSum, vvSum;
+double deltaT, density, rCut, temperature;
+double timeNow, uSum, velMag, virSum, vvSum;
 int moreCycles, stepAvg, stepCount, stepEquil, stepLimit;
 
 void PrintSummary (const char *FileName)
@@ -44,29 +45,29 @@ void VRand(Vector3f &p)
     p.y = s * y;
 }
 
-void CalculateDistance()
+void CalculateDistance(int first, int last)
 {
-    DO_MOL(nMol) {
-        distances[i].index = i;
-        distances[i].dist = Mol.p[i].Distance(pipeline.camera.Params.WorldPos);
+    for (int i = first; i < last; i++) {
+        distances.index[i] = i;
+        distances.dist[i] = Mol.p[i].Distance(pipeline.camera.Params.WorldPos);
     }
 }
-
-void CalculateForces ()
+ 
+void CalculateForces (int first, int last)
 {
     Vector3f dr;
     double fcVal, rr, rrCut, rri, rri3;
-    int j1, j2;
     rrCut = rCut * rCut;
-    DO_MOL (nMol) {
+    for (int i = first; i < last; i++) {
         Mol.f[i].x = 0.0;
         Mol.f[i].y = 0.0; 
         Mol.f[i].z = 0.0;
     }
     
     double uSum = 0.0;
-    for (j1 = 0; j1 < nMol - 1; j1 ++) {
-        for (j2 = j1 + 1; j2 < nMol; j2 ++) {
+    for (int j1 = first; j1 < last; j1++) {
+        for (int j2 = j1 + 1; j2 != j1; j2 = (j2 + 1) % nMol) {
+            // printf("%d %d\n", j1, j2);
             dr.x = Mol.p[j1].x - Mol.p[j2].x; 
             dr.y = Mol.p[j1].y - Mol.p[j2].y;
             dr.z = Mol.p[j1].z - Mol.p[j2].z;
@@ -83,9 +84,6 @@ void CalculateForces ()
                 Mol.f[j1].x += fcVal * dr.x;
                 Mol.f[j1].y += fcVal * dr.y;
                 Mol.f[j1].z += fcVal * dr.z;
-                Mol.f[j2].x -= fcVal * dr.x;
-                Mol.f[j2].y -= fcVal * dr.y;
-                Mol.f[j2].z -= fcVal * dr.z;
                 uSum += 4. * rri3 * (rri3 - 1.) + 1.0;
                 virSum += fcVal * rr;
             }
@@ -93,10 +91,10 @@ void CalculateForces ()
     }
 }
 
-void LeapfrogStep (int part)
+void LeapfrogStep (int part, int first, int last)
 {
     if (part == 1) {
-        DO_MOL(nMol) {
+        for (int i = first; i < last; i++) {
             Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT));  
             Mol.p[i] = Mol.p[i].VAdd(Mol.v[i].VScale(deltaT)); 
 
@@ -110,7 +108,9 @@ void LeapfrogStep (int part)
             if (unlikely(Mol.p[i].z > region.z)) Mol.p[i].z = (-region.z + fmod(Mol.p[i].z, region.z));
         }
     } else {
-        DO_MOL(nMol) Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT));  
+        for (int i = first; i < last; i++) {
+            Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT));  
+        }
     }
 }
 
@@ -129,6 +129,42 @@ void AccumProps (int icode)
         kinEnergy.PropAvg(stepAvg);
         pressure .PropAvg(stepAvg);
     }
+}
+
+void EvalProps ()
+{
+    double vv;
+    vSum.VZero();
+    vvSum = 0.0;
+    DO_MOL(nMol) {
+        vSum = vSum.VAdd(Mol.v[i]);
+        vv = Mol.v[i].VLenSq();
+        vvSum += vv;
+    }
+    kinEnergy.val = 0.5 * vvSum / nMol;
+    totEnergy.val = kinEnergy.val + uSum / nMol;
+    pressure.val = density * (vvSum + virSum) / (nMol * NDIM);
+}
+
+void SingleStep (int first, int last)
+{
+    ++stepCount;
+    timeNow = stepCount * deltaT;
+    LeapfrogStep(1, first, last);
+    CalculateForces(first, last);
+    LeapfrogStep(2, first, last);
+    if (stepCount == 2000) {
+        printf("End\n");
+        moreCycles = 0;
+    }
+    // EvalProps ();
+    // AccumProps (1);
+    // if (stepCount % stepAvg == 0) {
+    //     AccumProps (2);
+    //     PrintSummary ("log.out");
+    //     AccumProps (0);
+    // }
+    CalculateDistance(first, last);
 }
 
 void EvalVelDist ()
@@ -154,21 +190,6 @@ void EvalVelDist ()
     // }
 }
 
-void EvalProps ()
-{
-    double vv;
-    vSum.VZero();
-    vvSum = 0.0;
-    DO_MOL(nMol) {
-        vSum = vSum.VAdd(Mol.v[i]);
-        vv = Mol.v[i].VLenSq();
-        vvSum += vv;
-    }
-    kinEnergy.val = 0.5 * vvSum / nMol;
-    totEnergy.val = kinEnergy.val + uSum / nMol;
-    pressure.val = density * (vvSum + virSum) / (nMol * NDIM);
-}
-
 void InitMass ()
 {    
     DO_MOL(nMol) {
@@ -189,6 +210,7 @@ void InitVels ()
     }
     DO_MOL(nMol) {
         Mol.v[i] = Mol.v[i].VAdd(vSum.VScale(-1.0f / nMol));
+        Mol.v[i] = Mol.v[i].VAdd(Vector3f(1, 0, 0));
     }
 }
 
@@ -203,7 +225,7 @@ void InitCoords ()
                 c.VSet (nx, ny, nz); 
                 c = c.VMul(gap);
                 c = c.VSub(Vector3f(region.x / 2, region.y / 2, region.z / 2));
-                c = c.VScale(2 - 1e-16);
+                c = c.VScale(2 - 1e-6);
                 Mol.p[n] = c;
                 n++;
                 if (n == nMol) return;
@@ -228,8 +250,6 @@ bool AllocArrays ()
 
 void SetupJob ()
 {
-    TRY(!AllocArrays(), "Memory alloc error (SetupJob).");
-    stepCount = 0;
     srand(time(NULL));
     InitCoords ();
     InitVels ();
@@ -237,36 +257,18 @@ void SetupJob ()
     AccumProps (0);
 }
 
-void SingleStep ()
-{
-    ++ stepCount;
-    timeNow = stepCount * deltaT;
-    LeapfrogStep (1);
-    CalculateForces ();
-    LeapfrogStep (2);
-    EvalProps ();
-    AccumProps (1);
-    if (stepCount % stepAvg == 0) {
-        AccumProps (2);
-        PrintSummary ("log.out");
-        AccumProps (0);
-    }
-    CalculateDistance();
-}
-
 void SetParams ()
 {
-    const int size = 3;
+    const double size = 2;
     moreCycles = 1;
     stepCount = 0;
     stepAvg = 500;
     stepEquil = 0;
     stepLimit = 1000 * 1000;
-    deltaT = 1e-5;
-    // density = 13;
-    rCut = pow(size, 1.0f / 6.0f);
-    density = pow(size / rCut, 3);
-    // rCut = size;
+    temperature = 1;
+    deltaT = 1e-4;
+    rCut = pow(2, 1.0f / 6.0f);
+    density = 5;
     region.VSet(size, size, size);
     nMol = static_cast<int>(region.x * region.y * region.z * density);
     initUcell.x = static_cast<int>(pow(nMol, 1.0 / 3.0) + 1);
@@ -278,7 +280,6 @@ void SetParams ()
 
 void init()
 {
-    SetParams();
     SetupJob ();
     printf("%d\n", nMol);
 }

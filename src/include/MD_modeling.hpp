@@ -60,7 +60,10 @@ typedef struct {
 
 // void init_particles ();
 // void MoveBody();
-void SingleStep ();
+void SingleStep (int first, int last);
+bool AllocArrays ();
+void SetupJob ();
+void SetParams ();
 void init();
 
 /*
