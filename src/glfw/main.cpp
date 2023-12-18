@@ -5,8 +5,18 @@ extern double size;
 extern DataMol Mol;
 extern FILE *result;
 extern struct distance_by_index distances;
+extern Pipeline pipeline;
+extern Vector3f region;
 
 bool IsEnd = false;
+
+void CalculateDistance()
+{
+    DO_MOL(nMol) { 
+        distances.index[i] = i;
+        distances.dist[i] = Mol.p[i].Distance(pipeline.camera.Params.WorldPos);
+    }
+}
 
 void ReadPosition()
 {
@@ -22,32 +32,30 @@ void ReadMass()
 void ReadParams()
 {
     fread(&nMol, sizeof(int), 1, result);
-    fread(&size, sizeof(int), 1, result);
+    fread(&size, sizeof(double), 1, result);
 }
 
 int main(int argc, char** argv)
 {
+    result = fopen("data/result.bin", "rb");
+    ReadParams();
+    region.VSet(size, size, size);
     GLFWwindow* window = nullptr;
     InitializeGLFW(window);
     glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
     CompileShaders();
-    result = fopen("data/result.bin", "rb");
-    ReadParams();
-
-    cout << "Beg" << endl;
 
     TRY(((Mol.p = (Vector3f*)malloc(sizeof(Vector3f) * nMol)) == nullptr), "Memory allocation error (nMol.p).");
     TRY(((Mol.m = (double*)malloc(sizeof(double) * nMol)) == nullptr), "Memory allocation error (nMol.m).");
     TRY(((distances.index = (int*)malloc(sizeof(int) * nMol)) == nullptr), "Memory allocation error (distances.index).");
     TRY(((distances.dist = (double*)malloc(sizeof(double) * nMol)) == nullptr), "Memory allocation error (distances.dist).");
 
-    cout << "Mem" << endl;
     ReadMass();
     ReadPosition();
-    cout << nMol << "\t" << size << endl;
 
     while (!IsEnd) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        CalculateDistance();
         RenderSceneCB();
         ReadPosition();
         glfwSwapBuffers(window);

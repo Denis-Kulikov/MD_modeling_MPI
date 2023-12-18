@@ -1,7 +1,7 @@
 #include "../include/glfw.hpp"
 #include <mpi.h>
 
-extern struct distance_by_index distances;
+// extern struct distance_by_index distances;
 extern Vector3f region;
 extern Vector3i initUcell;
 extern DataMol Mol;
@@ -17,8 +17,8 @@ MPI_Datatype vector3f_type;
 
 void ExchangeAndReduce(int rank, int size)
 {
-    MPI_Request reqs[(size - 1) * 2 * 4];
-    MPI_Status stats[(size - 1) * 2 * 4];
+    MPI_Request reqs[(size - 1) * 2 * 2];
+    MPI_Status stats[(size - 1) * 2 * 2];
     int req_count = 0;
 
     for (int i = 0; i < size; i++) {
@@ -29,11 +29,11 @@ void ExchangeAndReduce(int rank, int size)
             MPI_Isend(Mol.v + FIRST(rank, size), NELEMS(rank, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
             MPI_Irecv(Mol.v + FIRST(i, size), NELEMS(i, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
 
-            MPI_Isend(distances.dist + FIRST(rank, size), NELEMS(rank, size), MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
-            MPI_Irecv(distances.dist + FIRST(i, size), NELEMS(i, size), MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+            // MPI_Isend(distances.dist + FIRST(rank, size), NELEMS(rank, size), MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+            // MPI_Irecv(distances.dist + FIRST(i, size), NELEMS(i, size), MPI_DOUBLE, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
 
-            MPI_Isend(distances.index + FIRST(rank, size), NELEMS(rank, size), MPI_INT, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
-            MPI_Irecv(distances.index + FIRST(i, size), NELEMS(i, size), MPI_INT, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+            // MPI_Isend(distances.index + FIRST(rank, size), NELEMS(rank, size), MPI_INT, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+            // MPI_Irecv(distances.index + FIRST(i, size), NELEMS(i, size), MPI_INT, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
         } 
     }
     double NewuSum = 0, NewvirSum = 0;
@@ -55,7 +55,7 @@ void BroadcastDataMol(int rank, int size)
 int main(int argc, char** argv)
 {
     int commsize, rank;
-    GLFWwindow* window = nullptr;
+    // GLFWwindow* window = nullptr;
     MPI_Init(&argc, &argv);
     double ttotal = -MPI_Wtime();
     MPI_Comm_size(MPI_COMM_WORLD, &commsize);
@@ -65,15 +65,16 @@ int main(int argc, char** argv)
 
     SetParams();
     TRY(!AllocArrays(), "Memory allocation error (AllocArrays).");
-    TRY(((distances.index = (int*)malloc(sizeof(int) * nMol)) == nullptr), "Memory allocation error (distances.index).");
-    TRY(((distances.dist = (double*)malloc(sizeof(double) * nMol)) == nullptr), "Memory allocation error (distances.dist).");
+    // TRY(((distances.index = (int*)malloc(sizeof(int) * nMol)) == nullptr), "Memory allocation error (distances.index).");
+    // TRY(((distances.dist = (double*)malloc(sizeof(double) * nMol)) == nullptr), "Memory allocation error (distances.dist).");
 
     if (rank == 0) {
-        InitializeGLFW(window);
-        glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
-        CompileShaders();
+        // InitializeGLFW(window);
+        // glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
+        // CompileShaders();
         SetupJob ();
-        printf("Body: %d\n\n", nMol);
+        printf("Body: %d\n", nMol);
+        printf("stepLimit: %d\n\n", stepLimit);
     }
     BroadcastDataMol(rank, commsize);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -86,18 +87,18 @@ int main(int argc, char** argv)
         first = FIRST(rank, commsize);
         last = LAST(rank, commsize);
     }
-    printf("FL: %d %d\n", first, last);
+    // printf("FL: %d %d\n", first, last);
 
     while (moreCycles) {
         SingleStep (first, last);
         ExchangeAndReduce(rank, commsize);
         if (rank == 0) {
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-            RenderSceneCB();
-            glfwSwapBuffers(window);
-            glfwPollEvents();
-            if (stepCount >= stepLimit) moreCycles = 0;
+            // glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            // RenderSceneCB();
+            // glfwSwapBuffers(window);
+            // glfwPollEvents();
         }
+        if (stepCount >= stepLimit) moreCycles = 0;
     }
 
     ttotal += MPI_Wtime();
@@ -105,16 +106,16 @@ int main(int argc, char** argv)
 
     MPI_Type_free(&vector3f_type);
 
-    free(distances.index);
-    free(distances.dist);
+    // free(distances.index);
+    // free(distances.dist);
     free(Mol.m);
     free(Mol.v);
     free(Mol.f);
     free(Mol.p);
 
-    if (rank == 0) {
-        glfwTerminate();
-    }
+    // if (rank == 0) {
+        // glfwTerminate();
+    // }
 
     MPI_Finalize();
 

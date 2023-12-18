@@ -1,7 +1,6 @@
 #include "../include/math_3d.h"
 #include "../include/MD_modeling.hpp"
 
-extern struct distance_by_index distances;
 extern Pipeline pipeline;
 
 int nMol;
@@ -11,7 +10,7 @@ Vector3f region;
 Vector3f vSum;
 Prop kinEnergy, pressure, totEnergy;
 FILE *result;
-FILE *log;
+FILE *logFile;
 double deltaT, alpha, density, rCut, temperature, size;
 double timeNow, uSum, velMag, virSum, vvSum;
 int moreCycles, stepAvg, stepCount, stepEquil, stepLimit, stepWrite;
@@ -24,14 +23,14 @@ void WritePosition()
 void WriteParams()
 {
     fwrite(&nMol, sizeof(int), 1, result);
-    fwrite(&size, sizeof(int), 1, result);
+    fwrite(&size, sizeof(double), 1, result);
     DO_MOL(nMol) fwrite(&Mol.m[i], sizeof(double), 1, result);
     DO_MOL(nMol) fwrite(&Mol.p[i], sizeof(Vector3f), 1, result);
 }
 
 void PrintSummary ()
 {
-    fprintf (log, "%5d %8.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
+    fprintf (logFile, "%5d %8.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
              stepCount, timeNow, vSum.VCSum() / nMol,
              PropEst(totEnergy),PropEst (kinEnergy), PropEst (pressure));
 }
@@ -53,14 +52,6 @@ void VRand(Vector3f &p)
     p.z = s * z;
 }
 
-void CalculateDistance(int first, int last)
-{
-    for (int i = first; i < last; i++) {
-        distances.index[i] = i;
-        distances.dist[i] = Mol.p[i].Distance(pipeline.camera.Params.WorldPos);
-    }
-}
- 
 void CalculateForces (int first, int last)
 {
     Vector3f dr;
@@ -159,10 +150,6 @@ void SingleStep (int first, int last)
 {
     ++stepCount;
     timeNow = stepCount * deltaT;
-    if (stepCount == 2000) {
-        printf("End\n");
-        moreCycles = 0;
-    }
     if (first == 0) {
         if ((stepCount % stepWrite) == 0) {
             WritePosition();
@@ -183,11 +170,13 @@ void SingleStep (int first, int last)
     LeapfrogStep(1, first, last);
     CalculateForces(first, last);
     LeapfrogStep(2, first, last);
-    CalculateDistance(first, last);
+    // CalculateDistance(first, last);
 
     if (stepCount == stepLimit) {
-        fclose(result);
-        fclose(log);
+        if (first == 0) {
+            fclose(result);
+            fclose(logFile);
+        }
         moreCycles = 0;
     }
 }
@@ -267,7 +256,8 @@ bool AllocArrays ()
 void SetupJob ()
 {
     result = fopen("data/result.bin", "wb");
-    log = fopen("data/log.txt", "w");
+    logFile = fopen("data/log.txt", "w");
+    fprintf(logFile, "Step\tTime\tv\tE()\t\tE_kin\t\tPressure\n");
     srand(time(NULL));
     InitCoords ();
     InitVels ();
@@ -282,12 +272,12 @@ void SetParams ()
     stepCount = 0;
     stepAvg = 200;
     stepEquil = 0;
-    stepLimit = 5 * 1000;
+    stepLimit = 1 * 1000;
     stepWrite = stepLimit / 500;
     temperature = 1;
     size = 15;
     density = 0.3;
-    deltaT = 1e-2;
+    deltaT = 1e-3;
     alpha = 10;
     rCut = pow(size, 1.0f / 3.0f);
     region.VSet(size, size, size);
@@ -295,6 +285,6 @@ void SetParams ()
     initUcell.x = static_cast<int>(pow(nMol, 1.0 / 3.0) + 1);
     initUcell.y = initUcell.x;
     initUcell.z = static_cast<int>(nMol / initUcell.x / initUcell.y) + 1;
-    printf("%d %d %d\n", initUcell.x, initUcell.y, initUcell.z);
+    // printf("%d %d %d\n", initUcell.x, initUcell.y, initUcell.z);
     velMag = sqrt (NDIM * (1.0f - 1.0f / nMol) * temperature);
 }

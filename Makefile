@@ -38,14 +38,14 @@ $(APP_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/p
 .PHONY: debug
 	debug: $(DEBUG_PATH)
 
-$(DEBUG_PATH): src/glfw/main.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
+$(DEBUG_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
 	$(CC) -g -o $@ -Wall $^ $(LDLIBS)
 	
 .PHONY: mpi
-debug: $(MPI_PATH)
+mpi: $(MPI_PATH)
 
-$(MPI_PATH): src/MPI/main.cpp src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
-	$(MPICXX) -g -o $@ -Wall $^ -lm
+$(MPI_PATH): src/MPI/main.cpp  src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
+	$(MPICXX) -o $@ -Wall $^ $(LDLIBS)
 	
 .PHONY: clean
 clean:
