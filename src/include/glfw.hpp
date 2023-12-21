@@ -25,7 +25,7 @@ using namespace std;
 // void createSphere();
 // void DrawCube();
 // void DrawSphere(int i);
-void RenderSceneCB();
+void RenderSceneCB(distance_by_index &distances);
 // GLuint LoadShader(const char *shader_path, GLuint type);
 // void CompileShadersProgram(GLuint ShaderProgram, const char *FS, const char *VS);
 void CompileShaders();

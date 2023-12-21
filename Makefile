@@ -4,7 +4,7 @@ MPI_NAME = ${APP_NAME}_MPI
 
 CC = g++
 MPICXX = mpicxx
-CFLAGS = -c -Wall -Wextra -Werror
+CFLAGS = -c -Wall -Wextra -Werror -MMD -MP
 LDLIBS = -lglfw -lGL -lGLEW -lm
 
 
@@ -33,13 +33,13 @@ DEPS = $(APP_OBJECTS:.o=.d) $(LIB_OBJECTS:.o=.d)
 all: $(APP_PATH)
 
 $(APP_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
-	$(CC) -o $@ -Wall $^ $(LDLIBS)
+	$(CC)  -fopenmp -o $@ -Wall $^ $(LDLIBS)
 
 .PHONY: debug
-	debug: $(DEBUG_PATH)
+debug: $(DEBUG_PATH)
 
 $(DEBUG_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
-	$(CC) -g -o $@ -Wall $^ $(LDLIBS)
+	$(CC) -g -fopenmp -o $@ -Wall $^ $(LDLIBS)
 	
 .PHONY: mpi
 mpi: $(MPI_PATH)
@@ -61,5 +61,5 @@ mrun: $(MPI_RUN)
 	mpiexec $(MPI_RUN)
 	
 .PHONY: drun
-drun: $(DEBUG_PATH)
-	gdb $(DEBUG_PATH)
+drun: $(DEBUG_RUN)
+	gdb $(DEBUG_RUN)

@@ -1,24 +1,3 @@
-// #include <fstream>
-// #include <iostream>
-// #include <cmath>
-// #include <cassert>
-// #include <sstream>
-// #include <string.h>
-// #include <stdio.h>
-// #include <vector>
-// #include <unistd.h>
-
-// #include <mpi.h>
-
-// #include <GL/glew.h>
-// #include <GLFW/glfw3.h>
-
-// #include "../include/distance.hpp"
-// #include "../include/MD_modeling.hpp"
-// #include "../include/math_3d.h"
-// #include "../include/pipeline.hpp"
-// #include "../include/pipeline.hpp"
-
 #include "../include/glfw.hpp"
 
 GLuint VAO;
@@ -33,16 +12,16 @@ GLuint ShaderCube;
 int width = 1280;
 int height = 768;
 
-double radius = 0.075f;
-int SPHERE_SEGMENTS = 16;
+double radius = 0.275f;
+int SPHERE_SEGMENTS = 6;
 int numVertices;
 int numIndices;
 
 Pipeline pipeline;
-struct distance_by_index distances;
 extern Vector3f region;
 extern DataMol Mol;
 extern int nMol, moreCycles, stepCount, stepLimit;
+extern bool IsEnd;
 
 void CreateCube()
 {
@@ -174,9 +153,8 @@ void DrawSphere(int i)
     glBindVertexArray(0);
 }
 
-void RenderSceneCB()
+void RenderSceneCB(distance_by_index &distances)
 {
-    sort_distances(distances, nMol);
     glUseProgram(ShaderSphere); 
     createSphere();
     pipeline.object.SetScale(radius, radius, radius);
@@ -294,6 +272,7 @@ static void KeyboardCB(GLFWwindow* window, int key, int scancode, int action, in
         case GLFW_KEY_F:
             glfwSetWindowShouldClose(window, GLFW_TRUE);
             moreCycles = 0;
+            IsEnd = true;
             break;
         case GLFW_KEY_W:
             pipeline.camera.Params.WorldPos.z += speed_movement;
