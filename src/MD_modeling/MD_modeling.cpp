@@ -7,12 +7,12 @@ int nMol;
 DataMol Mol;
 Vector3i initUcell;
 Vector3f region;
-Vector3f vSum;
+Vector3f vSum, Total_vSum;
 Prop kinEnergy, pressure, totEnergy;
 FILE *result;
 FILE *logFile;
 double deltaT, alpha, density, rCut, temperature, size;
-double timeNow, uSum, velMag, virSum, vvSum;
+double timeNow, uSum, velMag, virSum, vvSum, Total_uSum, Total_virSum, Total_vvSum;
 int moreCycles, stepAvg, stepCount, stepEquil, stepLimit, stepWrite;
 
 void WritePosition()
@@ -63,8 +63,8 @@ void CalculateForces (int first, int last)
         Mol.f[i].z = 0.0;
     }
     
-    double uSum = 0.0;
-    double virSum = 0.0;
+    uSum = 0.0;
+    virSum = 0.0;
     for (int j1 = first; j1 < last; j1++) {
         for (int j2 = j1 + 1; j2 != j1; j2 = (j2 + 1) % nMol) {
             dr.x = Mol.p[j1].x - Mol.p[j2].x; 
@@ -133,17 +133,21 @@ void AccumProps (int icode)
     }
 }
 
-void EvalProps ()
+void GetvSum (int first, int last)
 {
     vSum.VZero();
     vvSum = 0.0;
-    DO_MOL(nMol) {
+    for (int i = first; i < last; i++) {
         vSum = vSum.VAdd(Mol.v[i]);
         vvSum += Mol.v[i].VLenSq();
     }
-    kinEnergy.val = 0.5 * vvSum / nMol;
-    totEnergy.val = kinEnergy.val + uSum / nMol;
-    pressure.val = density * (vvSum + virSum) / (nMol * NDIM);
+}
+
+void EvalProps ()
+{
+    kinEnergy.val = 0.5 * Total_vvSum / nMol;
+    totEnergy.val = kinEnergy.val + Total_uSum / nMol;
+    pressure.val = density * (Total_vvSum + Total_virSum) / (nMol * NDIM);
 }
 
 void SingleStep (int first, int last)
@@ -167,9 +171,14 @@ void SingleStep (int first, int last)
             }
         }
     }
+
     LeapfrogStep(1, first, last);
     CalculateForces(first, last);
     LeapfrogStep(2, first, last);
+
+    if (((stepCount + 1) % stepAvg) == 0) {
+        GetvSum(first, last);
+    }
 
     if (stepCount == stepLimit) {
         if (first == 0) {
@@ -178,29 +187,6 @@ void SingleStep (int first, int last)
         }
         moreCycles = 0;
     }
-}
-
-void EvalVelDist ()
-{
-    // double deltaV, histSum;
-    // int j, n;
-
-    // if (countVel == 0) {
-    // for (j = 0; j < sizeHistVel; j ++) histVel[j] = 0.;
-    // }
-    // deltaV = rangeVel / sizeHistVel;
-    // DO_MOL { 10
-    // j = VLen (mol[n].rv) / deltaV;
-    // ++ histVel[Min (j, sizeHistVel - 1)];
-    // }
-    // ++ countVel;
-    // if (countVel == limitVel) { 
-    // histSum = 0.;
-    // for (j = 0; j < sizeHistVel; j ++) histSum += histVel[j];
-    // for (j = 0; j < sizeHistVel; j ++) histVel[j] /= histSum;
-    // PrintVelDist (stdout);
-    // countVel = 0;
-    // }
 }
 
 void InitMass ()
@@ -271,22 +257,12 @@ void SetParams ()
     stepCount = 0;
     stepAvg = 200;
     stepEquil = 0;
-    stepLimit = 1 * 1000;
-    stepWrite = 20;
+    stepLimit = 10 * 1000;
+    stepWrite = 50;
     temperature = 1;
-
-    // 1012
-    // size = 15;
-    // density = 0.3;
-
-    // 2048
-    // size = 16;
-    // density = 0.5;
-
     size = 20;
     density = 0.5;
-
-    deltaT = 1e-5;
+    deltaT = 1e-4;
     alpha = 10;
     rCut = pow(size, 1.0f / 3.0f);
     region.VSet(size, size, size);
@@ -295,4 +271,28 @@ void SetParams ()
     initUcell.y = initUcell.x;
     initUcell.z = static_cast<int>(nMol / initUcell.x / initUcell.y) + 1;
     velMag = sqrt (NDIM * (1.0f - 1.0f / nMol) * temperature);
+}
+
+
+void EvalVelDist ()
+{
+    // double deltaV, histSum;
+    // int j, n;
+
+    // if (countVel == 0) {
+    // for (j = 0; j < sizeHistVel; j ++) histVel[j] = 0.;
+    // }
+    // deltaV = rangeVel / sizeHistVel;
+    // DO_MOL { 10
+    // j = VLen (mol[n].rv) / deltaV;
+    // ++ histVel[Min (j, sizeHistVel - 1)];
+    // }
+    // ++ countVel;
+    // if (countVel == limitVel) { 
+    // histSum = 0.;
+    // for (j = 0; j < sizeHistVel; j ++) histSum += histVel[j];
+    // for (j = 0; j < sizeHistVel; j ++) histVel[j] /= histSum;
+    // PrintVelDist (stdout);
+    // countVel = 0;
+    // }
 }

@@ -1,41 +1,96 @@
-#include "../include/math_3d.h"
+// #include "../include/glfw.hpp"
 #include "../include/MD_modeling.hpp"
+#include "../include/math_3d.h"
 #include <mpi.h>
 
-extern Vector3f region;
-extern Vector3i initUcell;
-extern DataMol Mol;
-extern int nMol, moreCycles, stepCount, stepLimit;
-extern int width, height;
-extern double uSum, virSum;
-
-#define FIRST(x, s) (static_cast<int>(nMol / s) * x + std::min(x, nMol % s))
-#define LAST(x, s) (FIRST(x, s) + static_cast<int>(nMol / s) + (x < nMol % s ? 1 : 0))
+#define FIRST(x, s)  (static_cast<int>(nMol / s) * x + std::min(x, nMol % s))
+#define LAST(x, s)   (FIRST(x, s) + static_cast<int>(nMol / s) + (x < nMol % s ? 1 : 0))
 #define NELEMS(x, s) (LAST(x, s) - FIRST(x, s) + (nMol % s) * (x == (s - 1)))
+
+extern DataMol Mol;
+extern Vector3f vSum, Total_vSum;
+extern double uSum, virSum, vvSum, Total_uSum, Total_virSum, Total_vvSum;
+extern int nMol, moreCycles, stepCount, stepLimit, stepAvg;
 
 MPI_Datatype vector3f_type;
 
 void ExchangeAndReduce(int rank, int size)
 {
-    MPI_Request reqs[(size - 1) * 2 * 2];
-    MPI_Status stats[(size - 1) * 2 * 2];
+    // if (rank == 0) printf("ExchangeAndReduce\n");
+    // printf("[%d] ExchangeAndReduce\n", rank);
+    MPI_Request reqs[(size - 1) * 2];
+    MPI_Status stats[(size - 1) * 2];
     int req_count = 0;
 
     for (int i = 0; i < size; i++) {
         if (i != rank) {
-            MPI_Isend(Mol.p + FIRST(rank, size), NELEMS(rank, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+            MPI_Isend(Mol.p + FIRST(rank, size), NELEMS(rank, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]); // передача позиций точек
             MPI_Irecv(Mol.p + FIRST(i, size), NELEMS(i, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
-
-            MPI_Isend(Mol.v + FIRST(rank, size), NELEMS(rank, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
-            MPI_Irecv(Mol.v + FIRST(i, size), NELEMS(i, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
         } 
     }
-    double NewuSum = 0, NewvirSum = 0;
-    MPI_Reduce(&NewuSum, &uSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-    MPI_Reduce(&NewvirSum, &virSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
+    if (((stepCount + 1) % stepAvg) == 0) {
+        // if (rank == 0) printf("Step: %d\n", stepCount + 1);
+        Total_uSum = 0, Total_virSum = 0, Total_vvSum = 0;
+        Total_vSum.VZero();
+
+        MPI_Reduce(&Total_uSum, &uSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&Total_virSum, &virSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&Total_vvSum, &vvSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&Total_vSum.x, &vSum.x, 3, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    }
+
+    // if (rank == 0) printf("Start MPI_Waitall\n");
     MPI_Waitall((size - 1) * 2, reqs, stats);
+    // if (rank == 0) printf("End MPI_Waitall\n");
 }
+
+// void ExchangeAndReduce(int rank, int size)
+// {
+//     MPI_Request reqs[(size - 1) * 2];
+//     MPI_Status stats[(size - 1) * 2];
+//     int req_count = 0;
+
+//     for (int i = 0; i < size; i++) {
+//         if (i != rank) {
+//             MPI_Isend(Mol.p + FIRST(rank, size), NELEMS(rank, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]); // передача позиций точек
+//             MPI_Irecv(Mol.p + FIRST(i, size), NELEMS(i, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+//             // if (((stepCount + 1) % stepAvg) == 0) { 
+//             //     MPI_Isend(Mol.v + FIRST(rank, size), NELEMS(rank, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]); // раз в stepAvg передача скоростей
+//             //     MPI_Irecv(Mol.v + FIRST(i, size), NELEMS(i, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+//             // }
+//         } 
+//         // if (rank == 0) {
+//             // MPI_Irecv(Mol.p + FIRST(i, size), NELEMS(i, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+//             // if (((stepCount + 1) % stepAvg) == 0)
+//                 // MPI_Irecv(Mol.v + FIRST(i, size), NELEMS(i, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+//         // }
+//     }
+
+//     // if (((stepCount + 1) % stepAvg) == 0) { // раз в stepAvg передача скоростей
+//     //     if (rank == 0) {
+//     //         MPI_Irecv(Mol.v + FIRST(i, size), NELEMS(i, size), vector3f_type, i, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+//     //     } else {
+//     //         MPI_Isend(Mol.v + FIRST(rank, size), NELEMS(rank, size), vector3f_type, o, 0, MPI_COMM_WORLD, &reqs[req_count++]);
+//     //     }
+//     // }
+
+//     if (((stepCount + 1) % stepAvg) == 0) {
+//         Total_uSum = 0, Total_virSum = 0, Total_vvSum = 0;
+//         Total_vSum.VZero();
+
+//         MPI_Reduce(&Total_uSum, &uSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+//         MPI_Reduce(&Total_virSum, &virSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+//         MPI_Reduce(&Total_vvSum, &virSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+//         MPI_Reduce(&Total_vSum.x, &vSum.x, 3, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+//     }
+    
+//     // MPI_Reduce(&Total_vSum.x, &vSum.x, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+//     // MPI_Reduce(&Total_vSum.y, &vSum.y, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+//     // MPI_Reduce(&Total_vSum.z, &vSum.z, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+
+//     MPI_Waitall((size - 1) * 2, reqs, stats);
+// }
 
 void BroadcastDataMol(int rank, int size)
 {
@@ -44,7 +99,6 @@ void BroadcastDataMol(int rank, int size)
     MPI_Bcast(Mol.m, nMol, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Barrier(MPI_COMM_WORLD);
 }
-
 
 int main(int argc, char** argv)
 {
@@ -68,14 +122,9 @@ int main(int argc, char** argv)
     MPI_Barrier(MPI_COMM_WORLD);
 
     int first, last;
-    // if (rank == (commsize - 1)) {
-        // first = FIRST(rank, commsize);
-        // last = LAST(rank, commsize) + nMol % commsize;
-    // } else {
-        first = FIRST(rank, commsize);
-        last = LAST(rank, commsize);
-    // }
-    printf("FL: %d %d\n\n", first, last);
+    first = FIRST(rank, commsize);
+    last = LAST(rank, commsize);
+    printf("[%d]: %d %d\n", rank, first, last);
 
     while (moreCycles) {
         SingleStep (first, last);
