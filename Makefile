@@ -44,7 +44,7 @@ $(DEBUG_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw
 .PHONY: mpi
 mpi: $(MPI_PATH)
 
-$(MPI_PATH): src/MPI/main.cpp  src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
+$(MPI_PATH): src/MPI/all-cell.cpp  src/Math/math_3d.cpp src/MD_modeling/MD_modeling.cpp
 	$(MPICXX) -o $@ -Wall $^ -lm
 	
 .PHONY: clean

@@ -1,17 +1,12 @@
+#pragma once
+
 #include <iostream>
 #include <ctime>
+#include <string>
+#include <vector>
 #include "../include/math_3d.h"
 #include "../include/distance.hpp"
 #include "../include/pipeline.hpp"
-
-#define TRY(command, str_error) try {                                   \
-    if (command) {                                                      \
-        throw std::runtime_error(str_error);                            \
-    }                                                                   \
-} catch (const std::exception& e) {                                     \
-    std::cerr << e.what() << std::endl;                                 \
-    abort();                                                            \
-}
 
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x)   __builtin_expect(!!(x), 1)
@@ -20,7 +15,6 @@
 #define likely(x)   (x)
 #define unlikely(x) (x)
 #endif
-
 
 #define NDIM 3
 
@@ -43,12 +37,14 @@ v.sum1, v.sum2
 #define RandR() \
 (static_cast<double>(rand()) / (double)RAND_MAX)
 
-typedef struct {
-    double val, sum1, sum2;
-    void PropZero() {sum1 = 0.0f; sum2 = 0.0f;};
-    void PropAccum() {sum1 += val; sum2 += Sqr(val);};
-    void PropAvg(int num) {sum1 /= num; sum2 = sqrt(Max(sum2 / num - Sqr(sum1), 0.0f));};
-} Prop;
+enum SIDE {
+    RIGHT,
+    LEFT,
+    TOP,
+    BOTTOM,
+    FRONT,
+    BACK
+};
 
 typedef struct {
     Vector3f *p;
@@ -57,8 +53,38 @@ typedef struct {
     double *m;
 } DataMol;
 
-void SingleStep (int first, int last);
-bool AllocArrays ();
-void SetupJob ();
-void SetParams ();
-void init();
+typedef struct OneMolStruct {
+    Vector3f p;
+    Vector3f f;
+    Vector3f v;
+    double m;
+    OneMolStruct (Vector3f _p, Vector3f _f, Vector3f _v, double _m)
+    {
+        p = _p;
+        f = _f;
+        v = _v;
+        m = _m;
+    };
+} OneMol;
+
+typedef struct {
+    std::vector<OneMol> *esc[6];
+    std::vector<int> *n[6];
+} Escapees;
+
+typedef struct {
+    double val, sum1, sum2;
+    void PropZero() {sum1 = 0.0f; sum2 = 0.0f;};
+    void PropAccum() {sum1 += val; sum2 += Sqr(val);};
+    void PropAvg(int num) {sum1 /= num; sum2 = sqrt(Max(sum2 / num - Sqr(sum1), 0.0f));};
+} Prop;
+
+void CloseFile(int rank);
+void OpenFile(int rank);
+void WriteParams(int commsize);
+Escapees FindEscapees(int n, const Vector3i &crank, const Vector3i &dims, const Vector3f &center);
+void SingleStep (int n);
+Vector3f GetCenter(const Vector3i &crank, const Vector3i &dims);
+bool AllocArrays (int commsize);
+void SetupJob (int rank, int n, Vector3f center);
+void SetParams (const Vector3i &dims);

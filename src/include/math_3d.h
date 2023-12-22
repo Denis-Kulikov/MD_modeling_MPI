@@ -37,6 +37,7 @@ public:
 
     Vector3i VMul(Vector3i v) {return Vector3i(x * v.x, y * v.y, z * v.z);};
     Vector3i VScale(double s) {return VMul(Vector3i(s, s, s));};
+    int* GetData() { return &x; }
 };
 
 class Vector3f

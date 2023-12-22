@@ -1,6 +1,15 @@
 #include "../include/glfw.hpp"
+#include "../include/MD_modeling.hpp"
 #include <sys/time.h> 
 #include <omp.h>
+
+#define TRY(command, str_error) try {                                   \
+    if (command)                                                        \
+        throw std::runtime_error(str_error);                            \
+} catch (const std::exception& e) {                                     \
+    std::cerr << e.what() << std::endl;                                 \
+    abort();                                                            \
+}
 
 extern int nMol;
 extern double size;
@@ -12,6 +21,7 @@ extern Vector3f region;
 distance_by_index distances[2];
 int iter[2] = {0, 1};
 bool IsEnd = false;
+bool NextIsEnd = false;
 
 omp_lock_t lock_iter;
 
@@ -31,28 +41,56 @@ void CalculateDistance(distance_by_index &distances)
     sort_distances(distances, nMol);
 }
 
-void ReadPosition()
+void CloseFiles(FILE **data, int commsize)
 {
-    DO_MOL(nMol) fread(&Mol.p[i], sizeof(Vector3f), 1, result);
-    IsEnd = feof(result);
+    for (int i = 0; i < commsize; i++) {
+        fclose(data[i]);
+    }
+    free(data);
 }
 
-void ReadMass()
+void ReadData(FILE **data, int commsize)
 {
-    DO_MOL(nMol) fread(&Mol.m[i], sizeof(double), 1, result);
+    int NBody = 0;
+    int n;
+
+    // if (NextIsEnd) {
+    //     IsEnd = true;
+    //     return;
+    // }
+
+    for (int i = 0; i < commsize; i++) {
+        fread(&n, sizeof(int), 1, data[i]);
+        fread(&Mol.m[NBody], sizeof(double), n, data[i]);
+        fread(&Mol.p[NBody], sizeof(Vector3f), n, data[i]);
+        NBody += n;
+        IsEnd = feof(result);
+    }
 }
 
-void ReadParams()
+FILE **ReadParams(int &commsize)
 {
-    fread(&nMol, sizeof(int), 1, result);
-    fread(&size, sizeof(double), 1, result);
+    FILE *Params = fopen("data/params.bin", "rb");
+    fread(&commsize, sizeof(int), 1, Params);
+    fread(&nMol, sizeof(int), 1, Params);
+    fread(&size, sizeof(double), 1, Params);
+    fclose(Params);
+
+    FILE **data = (FILE**)malloc(sizeof(FILE*) * commsize);
+    for (int i = 0; i < commsize; i++) {
+        string file_name = "data/result" + std::to_string(i) + ".bin";
+        data[i] = fopen(file_name.c_str(), "rb");
+    }
+
+    return data;
 }
 
 int main(int argc, char** argv)
 {
     double t = wtime();
+    int commsize;
     TRY(((result = fopen("data/result.bin", "rb")) == nullptr), "No such file: data/result.bin\n");
-    ReadParams();
+    FILE **data = ReadParams(commsize);
     region.VSet(size, size, size);
     GLFWwindow* window = nullptr;
     InitializeGLFW(window);
@@ -66,8 +104,6 @@ int main(int argc, char** argv)
     TRY(((distances[1].index = (int*)malloc(sizeof(int) * nMol)) == nullptr), "Memory allocation error (distances.index).");
     TRY(((distances[0].dist = (double*)malloc(sizeof(double) * nMol)) == nullptr), "Memory allocation error (distances.dist).");
     TRY(((distances[1].dist = (double*)malloc(sizeof(double) * nMol)) == nullptr), "Memory allocation error (distances.dist).");
-
-    ReadMass();
 
     #pragma omp parallel num_threads(2)
     {
@@ -97,7 +133,7 @@ int main(int argc, char** argv)
                 int iterCount = 0;
                 while (!IsEnd) {
                     if (iter[part] == iterCount) {
-                        ReadPosition();
+                        ReadData(data, commsize);
                         CalculateDistance(distances[part]);
                         // if ((iterCount % 20) == 0) printf("[%d] %d:%d | %d\n", iterCount, iter[0], iter[1], omp_get_thread_num());
                         iter[part]++;
@@ -110,6 +146,7 @@ int main(int argc, char** argv)
     }
 
     fclose(result);
+    CloseFiles(data, commsize);
     free(distances[0].index);
     free(distances[1].index);
     free(distances[0].dist);

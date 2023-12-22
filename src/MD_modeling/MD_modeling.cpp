@@ -1,12 +1,13 @@
 #include "../include/math_3d.h"
 #include "../include/MD_modeling.hpp"
+#include "../include/try.hpp"
 
 extern Pipeline pipeline;
 
 int nMol;
 DataMol Mol;
-Vector3i initUcell;
-Vector3f region;
+// Vector3i initUcell;
+Vector3f region, cregion;
 Vector3f vSum, Total_vSum;
 Prop kinEnergy, pressure, totEnergy;
 FILE *result;
@@ -15,17 +16,31 @@ double deltaT, alpha, density, rCut, temperature, size;
 double timeNow, uSum, velMag, virSum, vvSum, Total_uSum, Total_virSum, Total_vvSum;
 int moreCycles, stepAvg, stepCount, stepEquil, stepLimit, stepWrite;
 
-void WritePosition()
+void WritePosition(int n)
 {
-    DO_MOL(nMol) fwrite(&Mol.p[i], sizeof(Vector3f), 1, result);
+    fwrite(&n, sizeof(int), 1, result);
+    DO_MOL(n) fwrite(&Mol.m[i], sizeof(double), 1, result);
+    DO_MOL(n) fwrite(&Mol.p[i], sizeof(Vector3f), 1, result);
 }
 
-void WriteParams()
+void CloseFile(int rank)
 {
-    fwrite(&nMol, sizeof(int), 1, result);
-    fwrite(&size, sizeof(double), 1, result);
-    DO_MOL(nMol) fwrite(&Mol.m[i], sizeof(double), 1, result);
-    DO_MOL(nMol) fwrite(&Mol.p[i], sizeof(Vector3f), 1, result);
+    fclose(result);
+}
+
+void OpenFile(int rank)
+{
+    std::string file_name = "data/result" + std::to_string(rank) + ".bin";
+    result = fopen(file_name.c_str(), "wb");
+}
+
+void WriteParams(int commsize)
+{
+    logFile = fopen("data/params.bin", "wb");
+    fwrite(&commsize, sizeof(int), 1, logFile);
+    fwrite(&nMol, sizeof(int), 1, logFile);
+    fwrite(&size, sizeof(double), 1, logFile);
+    fclose(logFile);
 }
 
 void PrintSummary ()
@@ -33,6 +48,52 @@ void PrintSummary ()
     fprintf (logFile, "%5d %8.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
              stepCount, timeNow, vSum.VCSum() / nMol,
              PropEst(totEnergy),PropEst (kinEnergy), PropEst (pressure));
+}
+
+Escapees FindEscapees(int n, const Vector3i &crank, const Vector3i &dims, const Vector3f &center)
+{
+    Escapees escapee;
+    for (int i = RIGHT; i <= BACK; i++) {
+        TRY(((escapee.esc[i] = new(std::vector<OneMol>)) == nullptr), "Memory allocation error (escapee->escapee[]).")
+        TRY(((escapee.n[i] = new(std::vector<int>)) == nullptr), "Memory allocation error (escapee->escapee[]).")
+    }
+
+    DO_MOL(n) {
+        if (Mol.p[i].x > (center.x + cregion.x / 2)) {
+            if (crank.x == (dims.x - 1))
+                Mol.p[i].x = (-region.x + fmod(Mol.p[i].x, cregion.x));
+            escapee.esc[RIGHT]->push_back(OneMol(Mol.p[i], Mol.f[i], Mol.v[i], Mol.m[i])); 
+            escapee.n[RIGHT]->push_back(i);
+        } else if (Mol.p[i].x < (center.x - cregion.x / 2)) {
+            if (crank.x == 0)
+                Mol.p[i].x = (region.x + fmod(Mol.p[i].x, cregion.x));
+            escapee.esc[LEFT]->push_back(OneMol(Mol.p[i], Mol.f[i], Mol.v[i], Mol.m[i]));
+            escapee.n[LEFT]->push_back(i);
+        }
+        else if (Mol.p[i].y > (center.y + cregion.y / 2)) {
+            if (crank.y == (dims.y - 1))
+                Mol.p[i].y = (-region.y + fmod(Mol.p[i].y, cregion.y));
+            escapee.esc[TOP]->push_back(OneMol(Mol.p[i], Mol.f[i], Mol.v[i], Mol.m[i]));
+            escapee.n[TOP]->push_back(i);
+        } else if (Mol.p[i].y < (center.y - cregion.y / 2)) {
+            if (crank.y == 0)
+                Mol.p[i].y = (region.y + fmod(Mol.p[i].y, cregion.y));
+            escapee.esc[BOTTOM]->push_back(OneMol(Mol.p[i], Mol.f[i], Mol.v[i], Mol.m[i]));
+            escapee.n[BOTTOM]->push_back(i);
+        }
+        else if (Mol.p[i].z > (center.z + cregion.z / 2)) {
+            if (crank.z == (dims.z - 1))
+                Mol.p[i].z = (-region.z + fmod(Mol.p[i].z, cregion.z));
+            escapee.esc[FRONT]->push_back(OneMol(Mol.p[i], Mol.f[i], Mol.v[i], Mol.m[i]));
+            escapee.n[FRONT]->push_back(i);
+        } else if (Mol.p[i].z < (center.z - cregion.z / 2)) {
+            if (crank.z == 0)
+                Mol.p[i].z = (region.z + fmod(Mol.p[i].z, cregion.z));
+            escapee.esc[BACK]->push_back(OneMol(Mol.p[i], Mol.f[i], Mol.v[i], Mol.m[i]));
+            escapee.n[BACK]->push_back(i);
+        }
+    }
+    return escapee;
 }
 
 void VRand(Vector3f &p)
@@ -52,12 +113,12 @@ void VRand(Vector3f &p)
     p.z = s * z;
 }
 
-void CalculateForces (int first, int last)
+void CalculateForces (int n)
 {
     Vector3f dr;
     double fcVal, rr, rrCut, rri, rri3;
     rrCut = rCut * rCut;
-    for (int i = first; i < last; i++) {
+    DO_MOL(n) {
         Mol.f[i].x = 0.0;
         Mol.f[i].y = 0.0; 
         Mol.f[i].z = 0.0;
@@ -65,8 +126,8 @@ void CalculateForces (int first, int last)
     
     uSum = 0.0;
     virSum = 0.0;
-    for (int j1 = first; j1 < last; j1++) {
-        for (int j2 = j1 + 1; j2 != j1; j2 = (j2 + 1) % nMol) {
+    for (int j1 = 0; j1 < n; j1++) {
+        for (int j2 = j1 + 1; j2 < n - 1; j2++) {
             dr.x = Mol.p[j1].x - Mol.p[j2].x; 
             dr.y = Mol.p[j1].y - Mol.p[j2].y;
             dr.z = Mol.p[j1].z - Mol.p[j2].z;
@@ -93,24 +154,27 @@ void CalculateForces (int first, int last)
     }
 }
 
-void LeapfrogStep (int part, int first, int last)
+void LeapfrogStep (int part, int n)
 {
     if (part == 1) {
-        for (int i = first; i < last; i++) {
+        // printf("[%d] Start LeapfrogStep\n", part);
+        DO_MOL(n) {
             Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT));  
             Mol.p[i] = Mol.p[i].VAdd(Mol.v[i].VScale(deltaT)); 
 
-            if (unlikely(Mol.p[i].x < -region.x)) Mol.p[i].x = (region.x + fmod(Mol.p[i].x, region.x));
-            if (unlikely(Mol.p[i].x > region.x)) Mol.p[i].x = (-region.x + fmod(Mol.p[i].x, region.x));
+            // NO WRAP
+            // if (unlikely(Mol.p[i].x < -region.x)) Mol.p[i].x = (region.x + fmod(Mol.p[i].x, region.x));
+            // if (unlikely(Mol.p[i].x > region.x)) Mol.p[i].x = (-region.x + fmod(Mol.p[i].x, region.x));
 
-            if (unlikely(Mol.p[i].y < -region.y)) Mol.p[i].y = (region.y + fmod(Mol.p[i].y, region.y));
-            if (unlikely(Mol.p[i].y > region.y)) Mol.p[i].y = (-region.y + fmod(Mol.p[i].y, region.y));
+            // if (unlikely(Mol.p[i].y < -region.y)) Mol.p[i].y = (region.y + fmod(Mol.p[i].y, region.y));
+            // if (unlikely(Mol.p[i].y > region.y)) Mol.p[i].y = (-region.y + fmod(Mol.p[i].y, region.y));
 
-            if (unlikely(Mol.p[i].z < -region.z)) Mol.p[i].z = (region.z + fmod(Mol.p[i].z, region.z));
-            if (unlikely(Mol.p[i].z > region.z)) Mol.p[i].z = (-region.z + fmod(Mol.p[i].z, region.z));
+            // if (unlikely(Mol.p[i].z < -region.z)) Mol.p[i].z = (region.z + fmod(Mol.p[i].z, region.z));
+            // if (unlikely(Mol.p[i].z > region.z)) Mol.p[i].z = (-region.z + fmod(Mol.p[i].z, region.z));
         }
     } else {
-        for (int i = first; i < last; i++) {
+        // printf("[%d] Start LeapfrogStep\n", part);
+        DO_MOL(n) {
             Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT));  
         }
     }
@@ -133,34 +197,36 @@ void AccumProps (int icode)
     }
 }
 
-void GetvSum (int first, int last)
+void GetvSum (int n)
 {
     vSum.VZero();
     vvSum = 0.0;
-    for (int i = first; i < last; i++) {
+    DO_MOL(n) {
         vSum = vSum.VAdd(Mol.v[i]);
         vvSum += Mol.v[i].VLenSq();
     }
 }
 
-void EvalProps ()
+void WriteInfo(int rank)
 {
-    kinEnergy.val = 0.5 * Total_vvSum / nMol;
-    totEnergy.val = kinEnergy.val + Total_uSum / nMol;
-    pressure.val = density * (Total_vvSum + Total_virSum) / (nMol * NDIM);
+    if (stepCount == stepLimit) {
+        if (rank == 0) {
+            fclose(result);
+            fclose(logFile);
+        }
+        moreCycles = 0;
+    }
 }
 
-void SingleStep (int first, int last)
+void GetInfo(int rank)
 {
-    ++stepCount;
-    timeNow = stepCount * deltaT;
-    if (first == 0) {
+    if (rank == 0) {
         if ((stepCount % stepWrite) == 0) {
-            WritePosition();
+            // WritePosition();
         }
         if ((stepCount % stepAvg) == 0) {
             printf("|Step: %d\n", stepCount);
-            EvalProps ();
+            // EvalProps ();
             AccumProps (1);
             AccumProps (2);
             PrintSummary ();
@@ -170,65 +236,89 @@ void SingleStep (int first, int last)
                     printf("%f %f %f\n", Mol.v[i].x, Mol.v[i].y, Mol.v[i].z);
             }
         }
-    }
-
-    LeapfrogStep(1, first, last);
-    CalculateForces(first, last);
-    LeapfrogStep(2, first, last);
-
-    if (((stepCount + 1) % stepAvg) == 0) {
-        GetvSum(first, last);
-    }
-
-    if (stepCount == stepLimit) {
-        if (first == 0) {
-            fclose(result);
-            fclose(logFile);
-        }
-        moreCycles = 0;
-    }
+    }   
 }
 
-void InitMass ()
+void EvalProps ()
+{
+    kinEnergy.val = 0.5 * Total_vvSum / nMol;
+    totEnergy.val = kinEnergy.val + Total_uSum / nMol;
+    pressure.val = density * (Total_vvSum + Total_virSum) / (nMol * NDIM);
+}
+
+void SingleStep (int n)
+{
+    // printf("Start SingleStep\n");
+    ++stepCount;
+    timeNow = stepCount * deltaT;
+
+    LeapfrogStep(1, n);
+    CalculateForces(n);
+    LeapfrogStep(2, n);
+
+    if ((stepCount % stepWrite) == 0) {
+        WritePosition(n);
+    }
+
+    // if (((stepCount + 1) % stepAvg) == 0) {
+        // GetvSum(n);
+    // }
+    // printf("Start SingleStep\n");
+}
+
+Vector3f GetCenter(const Vector3i &crank, const Vector3i &dims)
+{
+    Vector3f center(
+        region.x / dims.x * (crank.x + 1) - region.x,
+        region.y / dims.y * (crank.y + 1) - region.y,
+        region.z / dims.z * (crank.z + 1) - region.z
+    );
+    return center;
+}
+
+void InitMass (int n)
 {    
-    DO_MOL(nMol) {
+    DO_MOL(n) {
         Mol.m[i] = rand() / (double)RAND_MAX * 0.5 + 0.5;
         Mol.m[i] = rand() / (double)RAND_MAX * 0.5 + 0.5;
         Mol.m[i] = rand() / (double)RAND_MAX * 0.5 + 0.5;
     }
 }
 
-void InitVels ()
+void InitVels (int n)
 {
     srand(time(NULL));
     vSum.VZero();
-    DO_MOL(nMol) {
+    DO_MOL(n) {
         VRand (Mol.v[i]);
         Mol.v[i].VScale(velMag);
         vSum = vSum.VAdd(Mol.v[i]);
     }
-    DO_MOL(nMol) {
+    DO_MOL(n) {
         Mol.v[i] = Mol.v[i].VAdd(vSum.VScale(-1.0f / nMol));
     }
 }
 
-void InitCoords ()
+void InitCoords (int n, Vector3f center)
 {
-    DO_MOL(nMol) {
-        Mol.p[i].x = (i % 2 == 0 ? -1 : 1) * (i / 2 % 2 == 0 ? 1 : -1) * region.x / 2.0 + 
-                     (rand() / (double)RAND_MAX - 0.5) * region.x * (1 - 1e-4);
-        Mol.p[i].y = (i / 4 % 2 == 0 ? 1 : -1) * region.x / 2.0 + 
-                     (rand() / (double)RAND_MAX - 0.5) * region.x * (1 - 1e-4);
-        Mol.p[i].z = (i / 8 % 2 == 0 ? 1 : -1) * region.z / 2.0 + 
-                     (rand() / (double)RAND_MAX - 0.5) * region.z * (1 - 1e-4);
+    DO_MOL(n) {
+        // Mol.p[i].x = center.x + (i % 2 == 0 ? -1 : 1) * (i / 2 % 2 == 0 ? 1 : -1) * cregion.x / 4.0 + 
+        //              (rand() / (double)RAND_MAX / 2 - 0.25) * cregion.x * (1 - 1e-4);
+        // Mol.p[i].y = center.y + (i / 4 % 2 == 0 ? 1 : -1) * cregion.y / 4.0 + 
+        //              (rand() / (double)RAND_MAX / 2 - 0.25) * cregion.y * (1 - 1e-4);
+        // Mol.p[i].z = center.z + (i / 8 % 2 == 0 ? 1 : -1) * cregion.z / 4.0 + 
+        //              (rand() / (double)RAND_MAX / 2 - 0.25) * cregion.z * (1 - 1e-4);
+
+        Mol.p[i].x = center.x + (rand() / (double)RAND_MAX - 0.5) * cregion.x * (1 - 1e-4);
+        Mol.p[i].y = center.y + (rand() / (double)RAND_MAX - 0.5) * cregion.y * (1 - 1e-4);
+        Mol.p[i].z = center.z + (rand() / (double)RAND_MAX - 0.5) * cregion.z * (1 - 1e-4);
     }
 }
 
-bool AllocArrays ()
+bool AllocArrays (int commsize)
 {
-    if (nMol < 2) {
+    if (nMol < commsize * 2)
         return false;
-    }
 
     Mol.p = (Vector3f*)malloc(sizeof(Vector3f) * nMol);
     Mol.f = (Vector3f*)calloc(sizeof(Vector3f),  nMol);
@@ -238,38 +328,42 @@ bool AllocArrays ()
     return (Mol.p != nullptr) && (Mol.f != nullptr) && (Mol.v != nullptr) && (Mol.m != nullptr);
 }
 
-void SetupJob ()
+void SetupJob (int rank, int n, Vector3f center)
 {
-    result = fopen("data/result.bin", "wb");
-    logFile = fopen("data/log.txt", "w");
-    fprintf(logFile, "Step\tTime\tv\tE()\t\tE_kin\t\tPressure\n");
-    srand(time(NULL));
-    InitCoords ();
-    InitVels ();
-    InitMass ();
+    // result = fopen("data/result.bin", "wb");
+    // logFile = fopen("data/log.txt", "w");
+    // fprintf(logFile, "Step\tTime\tv\tE()\t\tE_kin\t\tPressure\n");
+    srand(rank);
+    InitCoords (n, center);
+    InitVels (n);
+    InitMass (n);
     AccumProps (0);
-    WriteParams();
 }
 
-void SetParams ()
+void SetParams (const Vector3i &dims)
 {
     moreCycles = 1;
     stepCount = 0;
     stepAvg = 200;
     stepEquil = 0;
-    stepLimit = 10 * 1000;
+    stepLimit = 100 * 1000;
     stepWrite = 50;
     temperature = 1;
-    size = 20;
-    density = 0.5;
+    size = 10;
+    density = 0.3;
     deltaT = 1e-4;
     alpha = 10;
     rCut = pow(size, 1.0f / 3.0f);
     region.VSet(size, size, size);
+    cregion.VSet(
+        region.x * 2 / dims.x,
+        region.y * 2 / dims.y,
+        region.z * 2 / dims.z
+    );
     nMol = static_cast<int>(region.x * region.y * region.z * density);
-    initUcell.x = static_cast<int>(pow(nMol, 1.0 / 3.0) + 1);
-    initUcell.y = initUcell.x;
-    initUcell.z = static_cast<int>(nMol / initUcell.x / initUcell.y) + 1;
+    // initUcell.x = static_cast<int>(pow(nMol, 1.0 / 3.0) + 1);
+    // initUcell.y = initUcell.x;
+    // initUcell.z = static_cast<int>(nMol / initUcell.x / initUcell.y) + 1;
     velMag = sqrt (NDIM * (1.0f - 1.0f / nMol) * temperature);
 }
 
