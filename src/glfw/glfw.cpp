@@ -13,14 +13,13 @@ int width = 1280;
 int height = 768;
 
 double radius = 0.275f;
-int SPHERE_SEGMENTS = 6;
+int SPHERE_SEGMENTS = 4;
 int numVertices;
 int numIndices;
 
 Pipeline pipeline;
 extern Vector3f region;
-extern DataMol Mol;
-extern int nMol, moreCycles, stepCount, stepLimit;
+extern int nMol;
 extern bool IsEnd;
 
 void CreateCube()
@@ -135,7 +134,7 @@ void DrawCube()
     glBindVertexArray(0);
 }
 
-void DrawSphere(int i)
+void DrawSphere(int i, const DataMol &Mol)
 {
     pipeline.object.SetWorldPos(Mol.p[i].x, Mol.p[i].y, Mol.p[i].z);
 
@@ -153,7 +152,7 @@ void DrawSphere(int i)
     glBindVertexArray(0);
 }
 
-void RenderSceneCB(distance_by_index &distances)
+void RenderSceneCB(const distance_by_index &distances, const DataMol &Mol)
 {
     glUseProgram(ShaderSphere); 
     createSphere();
@@ -161,7 +160,7 @@ void RenderSceneCB(distance_by_index &distances)
     pipeline.object.SetRotate(0, 0, 0);
     for (int i = 0; i < nMol; i++) {
         int particleIndex = distances.index[i];
-        DrawSphere(particleIndex);
+        DrawSphere(particleIndex, Mol);
     }
 
     glUseProgram(ShaderCube);
@@ -271,7 +270,6 @@ static void KeyboardCB(GLFWwindow* window, int key, int scancode, int action, in
     switch (key) {
         case GLFW_KEY_F:
             glfwSetWindowShouldClose(window, GLFW_TRUE);
-            moreCycles = 0;
             IsEnd = true;
             break;
         case GLFW_KEY_W:

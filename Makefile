@@ -32,13 +32,13 @@ DEPS = $(APP_OBJECTS:.o=.d) $(LIB_OBJECTS:.o=.d)
 .PHONY: all
 all: $(APP_PATH)
 
-$(APP_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
+$(APP_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp
 	$(CC)  -fopenmp -o $@ -Wall $^ $(LDLIBS)
 
 .PHONY: debug
 debug: $(DEBUG_PATH)
 
-$(DEBUG_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp src/MD_modeling/MD_modeling.cpp
+$(DEBUG_PATH): src/glfw/main.cpp src/glfw/glfw.cpp src/Math/math_3d.cpp src/glfw/pipeline.cpp src/glfw/distance.cpp 
 	$(CC) -g -fopenmp -o $@ -Wall $^ $(LDLIBS)
 	
 .PHONY: mpi
