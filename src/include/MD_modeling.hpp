@@ -5,8 +5,6 @@
 #include <string>
 #include <vector>
 #include "../include/math_3d.h"
-#include "../include/distance.hpp"
-#include "../include/pipeline.hpp"
 
 #if defined(__GNUC__) || defined(__clang__)
 #define likely(x)   __builtin_expect(!!(x), 1)
@@ -82,6 +80,14 @@ typedef struct {
 void CloseFile(int rank);
 void OpenFile(int rank);
 void WriteParams(int commsize);
+
+void WriteSystem ();
+void CloseSystemFile();
+void OpenSystemFile();
+void AccumProps (int icode);
+void EvalProps ();
+void GetvSum (int n);
+
 Escapees FindEscapees(int n, const Vector3i &crank, const Vector3i &dims, const Vector3f &center);
 void SingleStep (int n);
 Vector3f GetCenter(const Vector3i &crank, const Vector3i &dims);

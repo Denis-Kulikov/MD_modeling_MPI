@@ -2,18 +2,33 @@
 #include "../include/MD_modeling.hpp"
 #include "../include/try.hpp"
 
-extern Pipeline pipeline;
-
 int nMol;
 DataMol Mol;
-Vector3f vSum, region, cregion;
-// Vector3f Total_vSum;
-// Prop kinEnergy, pressure, totEnergy;
+Vector3f vSum, Total_vSum, region, cregion;
+Prop kinEnergy, pressure, totEnergy;
 FILE *result;
-FILE *logFile;
+FILE *dataFile;
 double deltaT, alpha, density, rCut, temperature, size;
 double timeNow, uSum, velMag, virSum, vvSum, Total_uSum, Total_virSum, Total_vvSum;
-int moreCycles, stepAvg, stepCount, stepEquil, stepLimit, stepWrite;
+int stepAvg, stepCount, stepEquil, stepLimit, stepWrite;
+
+
+void VRand(Vector3f &p)
+{
+    double s, x, y, z;
+    s = 2.0f;
+    while (s > 1.0f) {
+        x = 2.0f * RandR() - 1.0f;
+        y = 2.0f * RandR() - 1.0f;
+        z = 2.0f * RandR() - 1.0f;
+        s = Sqr(x) + Sqr(y) + Sqr(z);
+    }
+    p.z = 1.0f - 2.0f * s;
+    s = 2.0f * sqrt(1.0f - s);
+    p.x = s * x;
+    p.y = s * y;
+    p.z = s * z;
+}
 
 void WritePosition(int n)
 {
@@ -35,12 +50,66 @@ void OpenFile(int rank)
 
 void WriteParams(int commsize)
 {
-    logFile = fopen("data/params.bin", "wb");
-    fwrite(&commsize, sizeof(int), 1, logFile);
-    fwrite(&nMol, sizeof(int), 1, logFile);
-    fwrite(&size, sizeof(double), 1, logFile);
-    fclose(logFile);
+    dataFile = fopen("data/params.bin", "wb");
+    fwrite(&commsize, sizeof(int), 1, dataFile);
+    fwrite(&nMol, sizeof(int), 1, dataFile);
+    fwrite(&size, sizeof(double), 1, dataFile);
+    fclose(dataFile);
 }
+
+
+void WriteSystem ()
+{
+    fprintf (dataFile, "%5d\t%8.4f\t%7.6f %7.6f %7.6f %7.6f %7.6f %7.6f %7.6f\n",
+             stepCount, stepCount * deltaT, Total_vSum.VCSum() / nMol,
+             PropEst(totEnergy), PropEst (kinEnergy), PropEst (pressure));
+}
+
+void CloseSystemFile()
+{
+    fclose(dataFile);
+}
+
+void OpenSystemFile()
+{
+    dataFile = fopen("data/system.txt", "w");
+    fprintf (dataFile, "step, time, v, Energy, sqrEnergy, kinEnergy, sqrkinEnergy, Pressure, sqrPressure\n");
+}
+
+void AccumProps (int icode)
+{
+    if (icode == 0) {
+        totEnergy.PropZero();
+        kinEnergy.PropZero();
+        pressure .PropZero();
+    } else if (icode == 1) {
+        totEnergy.PropAccum();
+        kinEnergy.PropAccum();
+        pressure .PropAccum();
+    } else if (icode == 2) {
+        totEnergy.PropAvg(stepAvg);
+        kinEnergy.PropAvg(stepAvg);
+        pressure .PropAvg(stepAvg);
+    }
+}
+
+void EvalProps ()
+{
+    kinEnergy.val = 0.5 * Total_vvSum / nMol;
+    totEnergy.val = kinEnergy.val + fabs(Total_uSum) / nMol;
+    pressure.val = density * (Total_vvSum + Total_virSum) / (nMol * NDIM);
+}
+
+void GetvSum (int n)
+{
+    vSum.VZero();
+    vvSum = 0.0;
+    DO_MOL(n) {
+        vSum = vSum.VAdd(Mol.v[i]);
+        vvSum += Mol.v[i].VLenSq();
+    }
+}
+
 
 Escapees FindEscapees(int n, const Vector3i &crank, const Vector3i &dims, const Vector3f &center)
 {
@@ -88,23 +157,6 @@ Escapees FindEscapees(int n, const Vector3i &crank, const Vector3i &dims, const 
     return escapee;
 }
 
-void VRand(Vector3f &p)
-{
-    double s, x, y, z;
-    s = 2.0f;
-    while (s > 1.0f) {
-        x = 2.0f * RandR() - 1.0f;
-        y = 2.0f * RandR() - 1.0f;
-        z = 2.0f * RandR() - 1.0f;
-        s = Sqr(x) + Sqr(y) + Sqr(z);
-    }
-    p.z = 1.0f - 2.0f * s;
-    s = 2.0f * sqrt(1.0f - s);
-    p.x = s * x;
-    p.y = s * y;
-    p.z = s * z;
-}
-
 void CalculateForces (int n)
 {
     Vector3f dr;
@@ -116,8 +168,8 @@ void CalculateForces (int n)
         Mol.f[i].z = 0.0;
     }
     
-    // uSum = 0.0;
-    // virSum = 0.0;
+    uSum = 0.0;
+    virSum = 0.0;
     for (int j1 = 0; j1 < n; j1++) {
         for (int j2 = j1 + 1; j2 < n - 1; j2++) {
             dr.x = Mol.p[j1].x - Mol.p[j2].x; 
@@ -139,8 +191,8 @@ void CalculateForces (int n)
                 Mol.f[j1].x += fcVal * dr.x * smoothing;
                 Mol.f[j1].y += fcVal * dr.y * smoothing;
                 Mol.f[j1].z += fcVal * dr.z * smoothing;
-                // uSum += 4. * rri3 * (rri3 - 1.) + 1.0;
-                // virSum += fcVal * rr;
+                uSum += 4. * rri3 * (rri3 - 1.) + 1.0;
+                virSum += fcVal * rr;
             }
         }
     }
@@ -150,8 +202,8 @@ void LeapfrogStep (int part, int n)
 {
     if (part == 1) {
         DO_MOL(n) {
-            Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT));  
-            Mol.p[i] = Mol.p[i].VAdd(Mol.v[i].VScale(deltaT)); 
+            Mol.v[i] = Mol.v[i].VAdd(Mol.f[i].VScale(0.5 * deltaT).VDiv(Vector3f(Mol.m[i], Mol.m[i], Mol.m[i])));  
+            Mol.p[i] = Mol.p[i].VAdd(Mol.v[i].VScale(deltaT).VDiv(Vector3f(Mol.m[i], Mol.m[i], Mol.m[i]))); 
         }
     } else {
         DO_MOL(n) 
@@ -161,13 +213,13 @@ void LeapfrogStep (int part, int n)
 
 void SingleStep (int n)
 {
-    if ((stepCount % stepWrite) == 0) WritePosition(n);
-    ++stepCount;
-    // timeNow = stepCount * deltaT;
+    stepCount++;
 
     LeapfrogStep(1, n);
     CalculateForces(n);
     LeapfrogStep(2, n);
+    
+    if ((stepCount % stepWrite) == 0) WritePosition(n);
 }
 
 Vector3f GetCenter(const Vector3i &crank, const Vector3i &dims)
@@ -206,16 +258,9 @@ void InitVels (int n)
 void InitCoords (int n, Vector3f center)
 {
     DO_MOL(n) {
-        // Mol.p[i].x = center.x + (i % 2 == 0 ? -1 : 1) * (i / 2 % 2 == 0 ? 1 : -1) * cregion.x / 4.0 + 
-        //              (rand() / (double)RAND_MAX / 2 - 0.25) * cregion.x * (1 - 1e-4);
-        // Mol.p[i].y = center.y + (i / 4 % 2 == 0 ? 1 : -1) * cregion.y / 4.0 + 
-        //              (rand() / (double)RAND_MAX / 2 - 0.25) * cregion.y * (1 - 1e-4);
-        // Mol.p[i].z = center.z + (i / 8 % 2 == 0 ? 1 : -1) * cregion.z / 4.0 + 
-        //              (rand() / (double)RAND_MAX / 2 - 0.25) * cregion.z * (1 - 1e-4);
-
-        Mol.p[i].x = center.x + (rand() / (double)RAND_MAX - 0.5) * cregion.x * (1 - 1e-4);
-        Mol.p[i].y = center.y + (rand() / (double)RAND_MAX - 0.5) * cregion.y * (1 - 1e-4);
-        Mol.p[i].z = center.z + (rand() / (double)RAND_MAX - 0.5) * cregion.z * (1 - 1e-4);
+        Mol.p[i].x = center.x + (i % 2 == 0 ? -1 : 1) * (i / 2 % 2 == 0 ? 1 : -1) * cregion.x / 4.0 + (rand() / (double)RAND_MAX / 2 - 0.25) * cregion.x * (1 - 1e-6);
+        Mol.p[i].y = center.y + (i / 4 % 2 == 0 ? 1 : -1) * cregion.y / 4.0 + (rand() / (double)RAND_MAX / 2 - 0.25) * cregion.y * (1 - 1e-6);
+        Mol.p[i].z = center.z + (i / 8 % 2 == 0 ? 1 : -1) * cregion.z / 4.0 + (rand() / (double)RAND_MAX / 2 - 0.25) * cregion.z * (1 - 1e-6);
     }
 }
 
@@ -224,10 +269,10 @@ bool AllocArrays (int commsize)
     if (nMol < commsize * 2)
         return false;
 
-    Mol.p = (Vector3f*)malloc(sizeof(Vector3f) * nMol);
-    Mol.f = (Vector3f*)calloc(sizeof(Vector3f),  nMol);
-    Mol.v = (Vector3f*)malloc(sizeof(Vector3f) * nMol);
-    Mol.m = (double*)malloc(sizeof(double) * nMol);
+    Mol.p = (Vector3f*)malloc(sizeof(Vector3f) * nMol / commsize * 2);
+    Mol.f = (Vector3f*)calloc(sizeof(Vector3f),  nMol / commsize * 2);
+    Mol.v = (Vector3f*)malloc(sizeof(Vector3f) * nMol / commsize * 2);
+    Mol.m = (double*)malloc(sizeof(double) * nMol / commsize * 2);
 
     return (Mol.p != nullptr) && (Mol.f != nullptr) && (Mol.v != nullptr) && (Mol.m != nullptr);
 }
@@ -238,20 +283,19 @@ void SetupJob (int rank, int n, Vector3f center)
     InitCoords (n, center);
     InitVels (n);
     InitMass (n);
-    // AccumProps (0);
+    AccumProps (0);
 }
 
 void SetParams (const Vector3i &dims)
 {
-    moreCycles = 1;
     stepCount = 0;
-    stepAvg = 200;
+    stepAvg = 5000;
     stepEquil = 0;
-    stepLimit = 200 * 1000;
+    stepLimit = 300 * 1000;
     stepWrite = 100;
-    temperature = 1;
+    temperature = 50;
     size = 15;
-    density = 0.5;
+    density = 0.3;
     deltaT = 1e-4;
     alpha = 10;
     rCut = pow(size, 1.0f / 3.0f);
@@ -264,100 +308,3 @@ void SetParams (const Vector3i &dims)
     nMol = static_cast<int>(region.x * region.y * region.z * density);
     velMag = sqrt (NDIM * (1.0f - 1.0f / nMol) * temperature);
 }
-
-// void AccumProps (int icode)
-// {
-//     if (icode == 0) {
-//         totEnergy.PropZero();
-//         kinEnergy.PropZero();
-//         pressure .PropZero();
-//     } else if (icode == 1) {
-//         totEnergy.PropAccum();
-//         kinEnergy.PropAccum();
-//         pressure .PropAccum();
-//     } else if (icode == 2) {
-//         totEnergy.PropAvg(stepAvg);
-//         kinEnergy.PropAvg(stepAvg);
-//         pressure .PropAvg(stepAvg);
-//     }
-// }
-
-// void PrintSummary ()
-// {
-//     fprintf (logFile, "%5d %8.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n",
-//              stepCount, timeNow, vSum.VCSum() / nMol,
-//              PropEst(totEnergy),PropEst (kinEnergy), PropEst (pressure));
-// }
-
-// void GetvSum (int n)
-// {
-//     vSum.VZero();
-//     vvSum = 0.0;
-//     DO_MOL(n) {
-//         vSum = vSum.VAdd(Mol.v[i]);
-//         vvSum += Mol.v[i].VLenSq();
-//     }
-// }
-
-// void WriteInfo(int rank)
-// {
-//     if (stepCount == stepLimit) {
-//         if (rank == 0) {
-//             fclose(result);
-//             fclose(logFile);
-//         }
-//         moreCycles = 0;
-//     }
-// }
-
-// void GetInfo(int rank)
-// {
-//     if (rank == 0) {
-//         if ((stepCount % stepWrite) == 0) {
-//             // WritePosition();
-//         }
-//         if ((stepCount % stepAvg) == 0) {
-//             printf("|Step: %d\n", stepCount);
-//             // EvalProps ();
-//             AccumProps (1);
-//             AccumProps (2);
-//             PrintSummary ();
-//             AccumProps (0);
-//             DO_MOL(nMol) {
-//                 if ( Mol.v[i].x > 1000 || Mol.v[i].y > 1000 || Mol.v[i].z > 1000)
-//                     printf("%f %f %f\n", Mol.v[i].x, Mol.v[i].y, Mol.v[i].z);
-//             }
-//         }
-//     }   
-// }
-
-// void EvalProps ()
-// {
-//     kinEnergy.val = 0.5 * Total_vvSum / nMol;
-//     totEnergy.val = kinEnergy.val + Total_uSum / nMol;
-//     pressure.val = density * (Total_vvSum + Total_virSum) / (nMol * NDIM);
-// }
-
-
-// void EvalVelDist ()
-// {
-    // double deltaV, histSum;
-    // int j, n;
-
-    // if (countVel == 0) {
-    // for (j = 0; j < sizeHistVel; j ++) histVel[j] = 0.;
-    // }
-    // deltaV = rangeVel / sizeHistVel;
-    // DO_MOL { 10
-    // j = VLen (mol[n].rv) / deltaV;
-    // ++ histVel[Min (j, sizeHistVel - 1)];
-    // }
-    // ++ countVel;
-    // if (countVel == limitVel) { 
-    // histSum = 0.;
-    // for (j = 0; j < sizeHistVel; j ++) histSum += histVel[j];
-    // for (j = 0; j < sizeHistVel; j ++) histVel[j] /= histSum;
-    // PrintVelDist (stdout);
-    // countVel = 0;
-    // }
-// }

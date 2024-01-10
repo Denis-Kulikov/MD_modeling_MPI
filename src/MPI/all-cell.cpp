@@ -8,7 +8,7 @@
 extern DataMol Mol;
 extern Vector3f vSum, Total_vSum;
 extern double uSum, virSum, vvSum, Total_uSum, Total_virSum, Total_vvSum;
-extern int nMol, moreCycles, stepCount, stepLimit, stepAvg;
+extern int nMol, stepCount, stepLimit, stepAvg;
 
 MPI_Datatype vector3f_type;
 MPI_Datatype OneMol_type;
@@ -34,6 +34,16 @@ void Exchange(int rank, int commsize, int &nPros, int neighbours[6], MPI_Comm &c
         } else {
             MPI_Irecv(nullptr, 0, OneMol_type, neighbours[i], 0, cartcomm, &reqs[6 + i]); // Повторное получение пустого сообщения
         }
+    }
+
+    if ((stepCount % stepAvg) == 0) {
+        Total_uSum = 0, Total_virSum = 0, Total_vvSum = 0;
+        Total_vSum.VZero();
+
+        MPI_Reduce(&uSum,     &Total_uSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&virSum,   &Total_virSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&vvSum,    &Total_vvSum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        MPI_Reduce(&vSum.x,   &Total_vSum.x, 3, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     }
 
     MPI_Waitall(12, reqs, status);
@@ -77,6 +87,8 @@ int main(int argc, char *argv[])
     int commsize, rank;
     MPI_Init(&argc, &argv);
     double ttotal = -MPI_Wtime();
+    double tLeapfrog = 0;
+    double tExchange = 0;
     MPI_Comm_size(MPI_COMM_WORLD, &commsize);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     
@@ -114,25 +126,42 @@ int main(int argc, char *argv[])
         printf("NBody: %d\n", nMol);
         printf("Processes %d: px %d py %d pz %d\n", commsize, dims.x, dims.y, dims.z);
         WriteParams(commsize);
+        OpenSystemFile();
     }
 
-    printf("[%d]: NBody: %d, coords(%d, %d, %d) center(%f, %f, %f)\n", rank, nPros, crank.x, crank.y, crank.z, center.x, center.y, center.x);
+    printf("[%d]: NBody: %d, coords(%d, %d, %d)\n", rank, nPros, crank.x, crank.y, crank.z);
 
     OpenFile(rank);
-    while (moreCycles) {
+    while (true) {
+        tLeapfrog -= MPI_Wtime();
         SingleStep (nPros);
+        tLeapfrog += MPI_Wtime();
+
+        if ((stepCount % stepAvg) == 0) {
+            GetvSum (nPros);
+        }
+
+        tExchange -= MPI_Wtime();
         Exchange(rank, commsize, nPros, neighbours, cartcomm, FindEscapees(nPros, crank, dims, center));
-        if (stepCount >= stepLimit) moreCycles = 0;
+        tExchange += MPI_Wtime();
+
+        if ((rank == 0) && ((stepCount % stepAvg) == 0)) {
+            EvalProps ();
+            AccumProps (1);
+            AccumProps (2);
+            WriteSystem();
+            AccumProps (0);
+        }
+
+        if (stepCount >= stepLimit) break;
     }
     CloseFile(rank);
+    if (rank == 0) CloseSystemFile();
 
     ttotal += MPI_Wtime();
     printf("[%d] ttotal: %f\n", rank, ttotal);
 
-    int TotalnMol = 0;
-    MPI_Reduce(&nPros, &TotalnMol, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-
-    if (rank == 0) printf("Total nMol: %d\n", TotalnMol);
+    if (rank == 0) printf("tLeapfrog: %f | tExchange: %f\n", tLeapfrog, tExchange);
 
     MPI_Type_free(&vector3f_type);
     MPI_Type_free(&OneMol_type);

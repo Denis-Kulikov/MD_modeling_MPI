@@ -21,13 +21,6 @@ using namespace std;
 #define PI = 3.14159265359f;
 
 
-// void CreateCube();
-// void createSphere();
-// void DrawCube();
-// void DrawSphere(int i);
 void RenderSceneCB(const distance_by_index &distances, const DataMol &Mol);
-// GLuint LoadShader(const char *shader_path, GLuint type);
-// void CompileShadersProgram(GLuint ShaderProgram, const char *FS, const char *VS);
 void CompileShaders();
-// static void KeyboardCB(GLFWwindow* window, int key, int scancode, int action, int mods);
 void InitializeGLFW(GLFWwindow* &window);
